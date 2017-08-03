@@ -1,12 +1,18 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/thrasher-/gocryptotrader/common"
+	"github.com/thrasher-/gocryptotrader/config"
+)
+
+const (
+	WebsocketResponseSuccess = "OK"
 )
 
 var WebsocketRoutes = Routes{
@@ -19,14 +25,26 @@ var WebsocketRoutes = Routes{
 }
 
 type WebsocketClient struct {
-	ID       int
-	Conn     *websocket.Conn
-	LastRecv time.Time
+	ID            int
+	Conn          *websocket.Conn
+	LastRecv      time.Time
+	Authenticated bool
 }
 
 type WebsocketEvent struct {
 	Event string
 	Data  interface{}
+}
+
+type WebsocketEventResponse struct {
+	Event string      `json:"event"`
+	Data  interface{} `json:"data"`
+	Error string      `json:"error"`
+}
+
+type WebsocketTickerRequest struct {
+	Exchange string `json:"exchangeName"`
+	Currency string `json:"currency"`
 }
 
 var WebsocketClientHub []WebsocketClient
@@ -63,59 +81,188 @@ func DisconnectWebsocketClient(id int, err error) {
 	}
 }
 
-func SendWebsocketMessage(id int, evt WebsocketEvent) error {
-	data, err := common.JSONEncode(&evt)
-	if err != nil {
-		return err
-	}
+func SendWebsocketMessage(id int, data interface{}) error {
 	for _, x := range WebsocketClientHub {
 		if x.ID == id {
-			x.Conn.WriteMessage(websocket.TextMessage, data)
+			return x.Conn.WriteJSON(data)
 		}
 	}
 	return nil
 }
 
 func BroadcastWebsocketMessage(evt WebsocketEvent) error {
-	data, err := common.JSONEncode(&evt)
-	if err != nil {
-		return err
-	}
-
 	for _, x := range WebsocketClientHub {
-		x.Conn.WriteMessage(websocket.TextMessage, data)
+		x.Conn.WriteJSON(evt)
 	}
 	return nil
 }
 
-func HandleWebsocketEvent(evt WebsocketEvent) {
-	switch evt.Event {
-	case "ticker":
-		log.Println(evt.Data)
-	}
+type WebsocketAuth struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 func WebsocketHandler() {
 	for {
-		for _, x := range WebsocketClientHub {
-			msgType, msg, err := x.Conn.ReadMessage()
+		for x := range WebsocketClientHub {
+			msgType, msg, err := WebsocketClientHub[x].Conn.ReadMessage()
 			if err != nil {
-				DisconnectWebsocketClient(x.ID, err)
+				DisconnectWebsocketClient(x, err)
 				continue
 			}
 
 			if msgType != websocket.TextMessage {
-				DisconnectWebsocketClient(x.ID, err)
+				DisconnectWebsocketClient(x, err)
 				continue
 			}
 
-			resp := WebsocketEvent{}
-			err = common.JSONDecode(msg, &resp)
+			var evt WebsocketEvent
+			err = common.JSONDecode(msg, &evt)
 			if err != nil {
 				log.Println(err)
 				continue
 			}
-			HandleWebsocketEvent(resp)
+
+			if evt.Event == "" {
+				DisconnectWebsocketClient(x, errors.New("Websocket client sent data we did not understand"))
+				continue
+			}
+
+			dataJSON, err := common.JSONEncode(evt.Data)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
+			if !WebsocketClientHub[x].Authenticated && evt.Event != "auth" {
+				wsResp := WebsocketEventResponse{
+					Event: "auth",
+					Error: "you must authenticate first",
+				}
+				SendWebsocketMessage(x, wsResp)
+				DisconnectWebsocketClient(x, errors.New("Websocket client did not auth"))
+				continue
+			} else if !WebsocketClientHub[x].Authenticated && evt.Event == "auth" {
+				var auth WebsocketAuth
+				err = common.JSONDecode(dataJSON, &auth)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				hashPW := common.HexEncodeToString(common.GetSHA256([]byte("password")))
+				if auth.Username == "username" && auth.Password == hashPW {
+					WebsocketClientHub[x].Authenticated = true
+					wsResp := WebsocketEventResponse{
+						Event: "auth",
+						Data:  WebsocketResponseSuccess,
+					}
+					SendWebsocketMessage(x, wsResp)
+					log.Println("Websocket client authenticated successfully")
+					continue
+				} else {
+					wsResp := WebsocketEventResponse{
+						Event: "auth",
+						Error: "invalid username/password",
+					}
+					SendWebsocketMessage(x, wsResp)
+					DisconnectWebsocketClient(x, errors.New("Websocket client sent wrong username/password"))
+					continue
+				}
+			}
+			switch evt.Event {
+			case "GetConfig":
+				wsResp := WebsocketEventResponse{
+					Event: "GetConfig",
+					Data:  bot.config,
+				}
+				SendWebsocketMessage(x, wsResp)
+				continue
+			case "SaveConfig":
+				wsResp := WebsocketEventResponse{
+					Event: "SaveConfig",
+				}
+				var cfg config.Config
+				err := common.JSONDecode(dataJSON, &cfg)
+				if err != nil {
+					wsResp.Error = err.Error()
+					SendWebsocketMessage(x, wsResp)
+					log.Println(err)
+					continue
+				}
+
+				//Save change the settings
+				for x := range bot.config.Exchanges {
+					for i := 0; i < len(cfg.Exchanges); i++ {
+						if cfg.Exchanges[i].Name == bot.config.Exchanges[x].Name {
+							bot.config.Exchanges[x].Enabled = cfg.Exchanges[i].Enabled
+							bot.config.Exchanges[x].APIKey = cfg.Exchanges[i].APIKey
+							bot.config.Exchanges[x].APISecret = cfg.Exchanges[i].APISecret
+							bot.config.Exchanges[x].EnabledPairs = cfg.Exchanges[i].EnabledPairs
+						}
+					}
+				}
+
+				//Reload the configuration
+				err = bot.config.SaveConfig(bot.configFile)
+				if err != nil {
+					wsResp.Error = err.Error()
+					SendWebsocketMessage(x, wsResp)
+					continue
+				}
+				err = bot.config.LoadConfig(bot.configFile)
+				if err != nil {
+					wsResp.Error = err.Error()
+					SendWebsocketMessage(x, wsResp)
+					continue
+				}
+				setupBotExchanges()
+				wsResp.Data = WebsocketResponseSuccess
+				SendWebsocketMessage(x, wsResp)
+				continue
+			case "GetAccountInfo":
+				accountInfo := GetAllEnabledExchangeAccountInfo()
+				wsResp := WebsocketEventResponse{
+					Event: "GetAccountInfo",
+					Data:  accountInfo,
+				}
+				SendWebsocketMessage(x, wsResp)
+				continue
+			case "GetTicker":
+				wsResp := WebsocketEventResponse{
+					Event: "GetTicker",
+				}
+				var tickerReq WebsocketTickerRequest
+				err := common.JSONDecode(dataJSON, &tickerReq)
+				if err != nil {
+					wsResp.Error = err.Error()
+					SendWebsocketMessage(x, wsResp)
+					log.Println(err)
+					continue
+				}
+
+				data, err := GetSpecificTicker(tickerReq.Currency,
+					tickerReq.Exchange)
+
+				if err != nil {
+					wsResp.Error = err.Error()
+					SendWebsocketMessage(x, wsResp)
+					log.Println(err)
+					continue
+				}
+				wsResp.Data = data
+				SendWebsocketMessage(x, wsResp)
+				continue
+
+			case "GetTickers":
+				wsResp := WebsocketEventResponse{
+					Event: "GetTickers",
+				}
+				tickers := GetAllActiveTickers()
+				wsResp.Data = tickers
+				SendWebsocketMessage(x, wsResp)
+				continue
+			}
 		}
+		time.Sleep(time.Millisecond)
 	}
 }

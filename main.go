@@ -184,6 +184,9 @@ func main() {
 	SeedExchangeAccountInfo(GetAllEnabledExchangeAccountInfo().Data)
 	go portfolio.StartPortfolioWatcher()
 
+	log.Println("Starting websocket handler")
+	go WebsocketHandler()
+
 	if bot.config.Webserver.Enabled {
 		err := bot.config.CheckWebserverConfigValues()
 		if err != nil {
