@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/thrasher-/gocryptotrader/currency/pair"
+	"github.com/thrasher-/gocryptotrader/exchanges/ticker"
 )
 
 func TestStart(t *testing.T) {
@@ -18,7 +19,9 @@ func TestRun(t *testing.T) {
 
 func TestGetTickerPrice(t *testing.T) {
 	getTickerPrice := Bitfinex{}
-	_, err := getTickerPrice.GetTickerPrice(pair.NewCurrencyPair("BTC", "USD"))
+	getTickerPrice.EnabledPairs = []string{"BTCUSD", "LTCUSD"}
+	_, err := getTickerPrice.GetTickerPrice(pair.NewCurrencyPair("BTC", "USD"),
+		ticker.Spot)
 	if err != nil {
 		t.Errorf("Test Failed - Bitfinex GetTickerPrice() error: %s", err)
 	}
@@ -26,23 +29,9 @@ func TestGetTickerPrice(t *testing.T) {
 
 func TestGetOrderbookEx(t *testing.T) {
 	getOrderBookEx := Bitfinex{}
-	_, err := getOrderBookEx.GetOrderbookEx(pair.NewCurrencyPair("BTC", "USD"))
+	_, err := getOrderBookEx.GetOrderbookEx(pair.NewCurrencyPair("BTC", "USD"),
+		ticker.Spot)
 	if err != nil {
 		t.Errorf("Test Failed - Bitfinex GetOrderbookEx() error: %s", err)
 	}
-}
-
-func TestGetExchangeAccountInfo(t *testing.T) {
-	// getExchangeAccountInfo := Bitfinex{}
-	// newConfig := config.GetConfig()
-	// newConfig.LoadConfig("../../testdata/configtest.dat")
-	// exchConf, err := newConfig.GetExchangeConfig("Bitfinex")
-	// if err != nil {
-	// 	t.Errorf("Test Failed - Bitfinex getExchangeConfig(): %s", err)
-	// }
-	// getExchangeAccountInfo.Setup(exchConf)
-	// _, err = getExchangeAccountInfo.GetExchangeAccountInfo()
-	// if err != nil {
-	// 	t.Errorf("Test Failed - Bitfinex GetExchangeAccountInfo() error: %s", err)
-	// }
 }

@@ -15,17 +15,13 @@ func TestIsEnabled(t *testing.T) {
 	expected := "Enabled"
 	actual := IsEnabled(true)
 	if actual != expected {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected %s. Actual %s", expected, actual),
-		)
+		t.Errorf("Test failed. Expected %s. Actual %s", expected, actual)
 	}
 
 	expected = "Disabled"
 	actual = IsEnabled(false)
 	if actual != expected {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected %s. Actual %s", expected, actual),
-		)
+		t.Errorf("Test failed. Expected %s. Actual %s", expected, actual)
 	}
 }
 
@@ -82,10 +78,8 @@ func TestGetMD5(t *testing.T) {
 	actualOutput := GetMD5(originalString)
 	actualStr := HexEncodeToString(actualOutput)
 	if !bytes.Equal(expectedOutput, []byte(actualStr)) {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%s'. Actual '%s'",
-			expectedOutput, []byte(actualStr)),
-		)
+		t.Errorf("Test failed. Expected '%s'. Actual '%s'",
+			expectedOutput, []byte(actualStr))
 	}
 
 }
@@ -99,9 +93,8 @@ func TestGetSHA512(t *testing.T) {
 	actualOutput := GetSHA512(originalString)
 	actualStr := HexEncodeToString(actualOutput)
 	if !bytes.Equal(expectedOutput, []byte(actualStr)) {
-		t.Error(fmt.Sprintf("Test failed. Expected '%x'. Actual '%x'",
-			expectedOutput, []byte(actualStr)),
-		)
+		t.Errorf("Test failed. Expected '%x'. Actual '%x'",
+			expectedOutput, []byte(actualStr))
 	}
 }
 
@@ -114,9 +107,8 @@ func TestGetSHA256(t *testing.T) {
 	actualOutput := GetSHA256(originalString)
 	actualStr := HexEncodeToString(actualOutput)
 	if !bytes.Equal(expectedOutput, []byte(actualStr)) {
-		t.Error(fmt.Sprintf("Test failed. Expected '%x'. Actual '%x'",
-			expectedOutput, []byte(actualStr)),
-		)
+		t.Errorf("Test failed. Expected '%x'. Actual '%x'", expectedOutput,
+			[]byte(actualStr))
 	}
 }
 
@@ -173,7 +165,8 @@ func TestStringToLower(t *testing.T) {
 	expectedResult := "hey man"
 	actualResult := StringToLower(upperCaseString)
 	if actualResult != expectedResult {
-		t.Error("...")
+		t.Errorf("Test failed. Expected '%s'. Actual '%s'",
+			expectedResult, actualResult)
 	}
 }
 
@@ -183,7 +176,8 @@ func TestStringToUpper(t *testing.T) {
 	expectedResult := "HEY MAN"
 	actualResult := StringToUpper(upperCaseString)
 	if actualResult != expectedResult {
-		t.Error("...")
+		t.Errorf("Test failed. Expected '%s'. Actual '%s'",
+			expectedResult, actualResult)
 	}
 }
 
@@ -193,9 +187,8 @@ func TestHexEncodeToString(t *testing.T) {
 	expectedOutput := "737472696e67"
 	actualResult := HexEncodeToString(originalInput)
 	if actualResult != expectedOutput {
-		t.Error(fmt.Sprintf("Test failed. Expected '%s'. Actual '%s'",
-			expectedOutput, actualResult),
-		)
+		t.Errorf("Test failed. Expected '%s'. Actual '%s'",
+			expectedOutput, actualResult)
 	}
 }
 
@@ -205,9 +198,13 @@ func TestBase64Decode(t *testing.T) {
 	expectedOutput := []byte("hello")
 	actualResult, err := Base64Decode(originalInput)
 	if !bytes.Equal(actualResult, expectedOutput) {
-		t.Error(fmt.Sprintf("Test failed. Expected '%s'. Actual '%s'. Error: %s",
-			expectedOutput, actualResult, err),
-		)
+		t.Errorf("Test failed. Expected '%s'. Actual '%s'. Error: %s",
+			expectedOutput, actualResult, err)
+	}
+
+	_, err = Base64Decode("-")
+	if err == nil {
+		t.Error("Test failed. Bad base64 string failed returned nil error")
 	}
 }
 
@@ -217,22 +214,20 @@ func TestBase64Encode(t *testing.T) {
 	expectedOutput := "aGVsbG8="
 	actualResult := Base64Encode(originalInput)
 	if actualResult != expectedOutput {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%s'. Actual '%s'", expectedOutput, actualResult),
-		)
+		t.Errorf("Test failed. Expected '%s'. Actual '%s'",
+			expectedOutput, actualResult)
 	}
 }
 
 func TestStringSliceDifference(t *testing.T) {
 	t.Parallel()
 	originalInputOne := []string{"hello"}
-	originalInputTwo := []string{"moto"}
+	originalInputTwo := []string{"hello", "moto"}
 	expectedOutput := []string{"hello moto"}
 	actualResult := StringSliceDifference(originalInputOne, originalInputTwo)
 	if reflect.DeepEqual(expectedOutput, actualResult) {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%s'. Actual '%s'", expectedOutput, actualResult),
-		)
+		t.Errorf("Test failed. Expected '%s'. Actual '%s'",
+			expectedOutput, actualResult)
 	}
 }
 
@@ -243,31 +238,65 @@ func TestStringContains(t *testing.T) {
 	expectedOutput := true
 	actualResult := StringContains(originalInput, originalInputSubstring)
 	if actualResult != expectedOutput {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%t'. Actual '%t'", expectedOutput, actualResult),
-		)
+		t.Errorf("Test failed. Expected '%v'. Actual '%v'",
+			expectedOutput, actualResult)
 	}
 }
 
-func TestDataContains(t *testing.T) {
+func TestStringDataContains(t *testing.T) {
 	t.Parallel()
-	originalHaystack := []string{"hello", "world", "data", "Contains", "string"}
-	originalNeedle := "world"
+	originalHaystack := []string{"hello", "world", "USDT", "Contains", "string"}
+	originalNeedle := "USD"
 	anotherNeedle := "thing"
 	expectedOutput := true
 	expectedOutputTwo := false
-	actualResult := DataContains(originalHaystack, originalNeedle)
+	actualResult := StringDataContains(originalHaystack, originalNeedle)
 	if actualResult != expectedOutput {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%t'. Actual '%t'", expectedOutput, actualResult),
-		)
+		t.Errorf("Test failed. Expected '%v'. Actual '%v'",
+			expectedOutput, actualResult)
 	}
-	actualResult = DataContains(originalHaystack, anotherNeedle)
+	actualResult = StringDataContains(originalHaystack, anotherNeedle)
 	if actualResult != expectedOutputTwo {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%t'. Actual '%t'", expectedOutputTwo,
-			actualResult),
-		)
+		t.Errorf("Test failed. Expected '%v'. Actual '%v'",
+			expectedOutput, actualResult)
+	}
+}
+
+func TestStringDataCompare(t *testing.T) {
+	t.Parallel()
+	originalHaystack := []string{"hello", "WoRld", "USDT", "Contains", "string"}
+	originalNeedle := "WoRld"
+	anotherNeedle := "USD"
+	expectedOutput := true
+	expectedOutputTwo := false
+	actualResult := StringDataCompare(originalHaystack, originalNeedle)
+	if actualResult != expectedOutput {
+		t.Errorf("Test failed. Expected '%v'. Actual '%v'",
+			expectedOutput, actualResult)
+	}
+	actualResult = StringDataCompare(originalHaystack, anotherNeedle)
+	if actualResult != expectedOutputTwo {
+		t.Errorf("Test failed. Expected '%v'. Actual '%v'",
+			expectedOutput, actualResult)
+	}
+}
+
+func TestStringDataContainsUpper(t *testing.T) {
+	t.Parallel()
+	originalHaystack := []string{"bLa", "BrO", "sUp"}
+	originalNeedle := "Bla"
+	anotherNeedle := "ning"
+	expectedOutput := true
+	expectedOutputTwo := false
+	actualResult := StringDataContainsUpper(originalHaystack, originalNeedle)
+	if actualResult != expectedOutput {
+		t.Errorf("Test failed. Expected '%v'. Actual '%v'",
+			expectedOutput, actualResult)
+	}
+	actualResult = StringDataContainsUpper(originalHaystack, anotherNeedle)
+	if actualResult != expectedOutputTwo {
+		t.Errorf("Test failed. Expected '%v'. Actual '%v'",
+			expectedOutput, actualResult)
 	}
 }
 
@@ -278,9 +307,8 @@ func TestJoinStrings(t *testing.T) {
 	expectedOutput := "hello,moto"
 	actualResult := JoinStrings(originalInputOne, separator)
 	if expectedOutput != actualResult {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%s'. Actual '%s'", expectedOutput, actualResult),
-		)
+		t.Errorf("Test failed. Expected '%s'. Actual '%s'",
+			expectedOutput, actualResult)
 	}
 }
 
@@ -291,9 +319,8 @@ func TestSplitStrings(t *testing.T) {
 	expectedOutput := []string{"hello", "moto"}
 	actualResult := SplitStrings(originalInputOne, separator)
 	if !reflect.DeepEqual(expectedOutput, actualResult) {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%s'. Actual '%s'", expectedOutput, actualResult),
-		)
+		t.Errorf("Test failed. Expected '%s'. Actual '%s'",
+			expectedOutput, actualResult)
 	}
 }
 
@@ -304,6 +331,27 @@ func TestTrimString(t *testing.T) {
 	expectedOutput := "bc"
 	actualResult := TrimString(originalInput, cutset)
 	if expectedOutput != actualResult {
+		t.Errorf("Test failed. Expected '%s'. Actual '%s'",
+			expectedOutput, actualResult)
+	}
+}
+
+// ReplaceString replaces a string with another
+func TestReplaceString(t *testing.T) {
+	t.Parallel()
+	currency := "BTC-USD"
+	expectedOutput := "BTCUSD"
+
+	actualResult := ReplaceString(currency, "-", "", -1)
+	if expectedOutput != actualResult {
+		t.Errorf(
+			"Test failed. Expected '%s'. Actual '%s'", expectedOutput, actualResult,
+		)
+	}
+
+	currency = "BTC-USD--"
+	actualResult = ReplaceString(currency, "-", "", 3)
+	if expectedOutput != actualResult {
 		t.Errorf(
 			"Test failed. Expected '%s'. Actual '%s'", expectedOutput, actualResult,
 		)
@@ -312,14 +360,17 @@ func TestTrimString(t *testing.T) {
 
 func TestRoundFloat(t *testing.T) {
 	t.Parallel()
-	originalInput := float64(1.4545445445)
-	precisionInput := 2
-	expectedOutput := float64(1.45)
-	actualResult := RoundFloat(originalInput, precisionInput)
-	if expectedOutput != actualResult {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%f'. Actual '%f'.", expectedOutput, actualResult),
-		)
+	// mapping of input vs expected result
+	testTable := map[float64]float64{
+		2.3232323:  2.32,
+		-2.3232323: -2.32,
+	}
+	for testInput, expectedOutput := range testTable {
+		actualOutput := RoundFloat(testInput, 2)
+		if actualOutput != expectedOutput {
+			t.Errorf("Test failed. RoundFloat Expected '%f'. Actual '%f'.",
+				expectedOutput, actualOutput)
+		}
 	}
 }
 
@@ -343,9 +394,8 @@ func TestCalculateFee(t *testing.T) {
 	expectedOutput := float64(0.01)
 	actualResult := CalculateFee(originalInput, fee)
 	if expectedOutput != actualResult {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%f'. Actual '%f'.", expectedOutput, actualResult),
-		)
+		t.Errorf(
+			"Test failed. Expected '%f'. Actual '%f'.", expectedOutput, actualResult)
 	}
 }
 
@@ -356,9 +406,8 @@ func TestCalculateAmountWithFee(t *testing.T) {
 	expectedOutput := float64(1.01)
 	actualResult := CalculateAmountWithFee(originalInput, fee)
 	if expectedOutput != actualResult {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%f'. Actual '%f'.", expectedOutput, actualResult),
-		)
+		t.Errorf(
+			"Test failed. Expected '%f'. Actual '%f'.", expectedOutput, actualResult)
 	}
 }
 
@@ -369,9 +418,8 @@ func TestCalculatePercentageGainOrLoss(t *testing.T) {
 	expectedOutput := 3.3333333333333335
 	actualResult := CalculatePercentageGainOrLoss(originalInput, secondInput)
 	if expectedOutput != actualResult {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%f'. Actual '%f'.", expectedOutput, actualResult),
-		)
+		t.Errorf(
+			"Test failed. Expected '%f'. Actual '%f'.", expectedOutput, actualResult)
 	}
 }
 
@@ -382,9 +430,8 @@ func TestCalculatePercentageDifference(t *testing.T) {
 	expectedOutput := 66.66666666666666
 	actualResult := CalculatePercentageDifference(originalInput, secondAmount)
 	if expectedOutput != actualResult {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%f'. Actual '%f'.", expectedOutput, actualResult),
-		)
+		t.Errorf(
+			"Test failed. Expected '%f'. Actual '%f'.", expectedOutput, actualResult)
 	}
 }
 
@@ -397,9 +444,8 @@ func TestCalculateNetProfit(t *testing.T) {
 	expectedOutput := float64(44)
 	actualResult := CalculateNetProfit(amount, priceThen, priceNow, costs)
 	if expectedOutput != actualResult {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%f'. Actual '%f'.", expectedOutput, actualResult),
-		)
+		t.Errorf(
+			"Test failed. Expected '%f'. Actual '%f'.", expectedOutput, actualResult)
 	}
 }
 
@@ -413,28 +459,28 @@ func TestSendHTTPRequest(t *testing.T) {
 	headers["Content-Type"] = "application/x-www-form-urlencoded"
 
 	_, err := SendHTTPRequest(
-		methodGarbage, "http://query.yahooapis.com/v1/public/yql", headers,
+		methodGarbage, "https://query.yahooapis.com/v1/public/yql", headers,
 		strings.NewReader(""),
 	)
 	if err == nil {
 		t.Error("Test failed. ")
 	}
 	_, err = SendHTTPRequest(
-		methodPost, "http://query.yahooapis.com/v1/public/yql", headers,
+		methodPost, "https://query.yahooapis.com/v1/public/yql", headers,
 		strings.NewReader(""),
 	)
 	if err != nil {
 		t.Errorf("Test failed. %s ", err)
 	}
 	_, err = SendHTTPRequest(
-		methodGet, "http://query.yahooapis.com/v1/public/yql", headers,
+		methodGet, "https://query.yahooapis.com/v1/public/yql", headers,
 		strings.NewReader(""),
 	)
 	if err != nil {
 		t.Errorf("Test failed. %s ", err)
 	}
 	_, err = SendHTTPRequest(
-		methodDelete, "http://query.yahooapis.com/v1/public/yql", headers,
+		methodDelete, "https://query.yahooapis.com/v1/public/yql", headers,
 		strings.NewReader(""),
 	)
 	if err != nil {
@@ -444,29 +490,25 @@ func TestSendHTTPRequest(t *testing.T) {
 
 func TestSendHTTPGetRequest(t *testing.T) {
 	type test struct {
-		Status int `json:"status"`
-		Data   []struct {
-			Address   string      `json:"address"`
-			Balance   float64     `json:"balance"`
-			Nonce     interface{} `json:"nonce"`
-			Code      string      `json:"code"`
-			Name      interface{} `json:"name"`
-			Storage   interface{} `json:"storage"`
-			FirstSeen interface{} `json:"firstSeen"`
-		} `json:"data"`
+		Address string `json:"address"`
+		ETH     struct {
+			Balance  int `json:"balance"`
+			TotalIn  int `json:"totalIn"`
+			TotalOut int `json:"totalOut"`
+		} `json:"ETH"`
 	}
-	url := `https://etherchain.org/api/account/multiple/0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe`
+	url := `https://api.ethplorer.io/getAddressInfo/0xff71cb760666ab06aa73f34995b42dd4b85ea07b?apiKey=freekey`
 	result := test{}
 
-	err := SendHTTPGetRequest(url, true, &result)
+	err := SendHTTPGetRequest(url, true, false, &result)
 	if err != nil {
 		t.Errorf("Test failed - common SendHTTPGetRequest error: %s", err)
 	}
-	err = SendHTTPGetRequest("DINGDONG", true, &result)
+	err = SendHTTPGetRequest("DINGDONG", true, false, &result)
 	if err == nil {
 		t.Error("Test failed - common SendHTTPGetRequest error")
 	}
-	err = SendHTTPGetRequest(url, false, &result)
+	err = SendHTTPGetRequest(url, false, false, &result)
 	if err != nil {
 		t.Error("Test failed - common SendHTTPGetRequest error")
 	}
@@ -502,8 +544,8 @@ func TestJSONEncode(t *testing.T) {
 }
 
 func TestEncodeURLValues(t *testing.T) {
-	urlstring := "http://www.test.com"
-	expectedOutput := `http://www.test.com?env=TEST%2FDATABASE&format=json&q=SELECT+%2A+from+yahoo.finance.xchange+WHERE+pair+in+%28%22BTC%2CUSD%22%29`
+	urlstring := "https://www.test.com"
+	expectedOutput := `https://www.test.com?env=TEST%2FDATABASE&format=json&q=SELECT+%2A+from+yahoo.finance.xchange+WHERE+pair+in+%28%22BTC%2CUSD%22%29`
 	values := url.Values{}
 	values.Set("q", fmt.Sprintf(
 		"SELECT * from yahoo.finance.xchange WHERE pair in (\"%s\")", "BTC,USD"),
@@ -524,24 +566,21 @@ func TestExtractHost(t *testing.T) {
 	expectedOutput := "localhost"
 	actualResult := ExtractHost(address)
 	if expectedOutput != actualResult {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%s'. Actual '%s'.", expectedOutput, actualResult),
-		)
+		t.Errorf(
+			"Test failed. Expected '%s'. Actual '%s'.", expectedOutput, actualResult)
 	}
 	actualResultTwo := ExtractHost(addresstwo)
 	if expectedOutput != actualResultTwo {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%s'. Actual '%s'.", expectedOutput, actualResult),
-		)
+		t.Errorf(
+			"Test failed. Expected '%s'. Actual '%s'.", expectedOutput, actualResult)
 	}
 
 	address = "192.168.1.100:1337"
 	expectedOutput = "192.168.1.100"
 	actualResult = ExtractHost(address)
 	if expectedOutput != actualResult {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%s'. Actual '%s'.", expectedOutput, actualResult),
-		)
+		t.Errorf(
+			"Test failed. Expected '%s'. Actual '%s'.", expectedOutput, actualResult)
 	}
 }
 
@@ -551,9 +590,8 @@ func TestExtractPort(t *testing.T) {
 	expectedOutput := 1337
 	actualResult := ExtractPort(address)
 	if expectedOutput != actualResult {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%d'. Actual '%d'.", expectedOutput, actualResult),
-		)
+		t.Errorf(
+			"Test failed. Expected '%d'. Actual '%d'.", expectedOutput, actualResult)
 	}
 }
 
@@ -578,9 +616,8 @@ func TestUnixTimestampToTime(t *testing.T) {
 	expectedOutput := "2017-03-13 21:17:11 +0000 UTC"
 	actualResult := UnixTimestampToTime(testTime)
 	if tm.String() != actualResult.String() {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%s'. Actual '%s'.", expectedOutput, actualResult),
-		)
+		t.Errorf(
+			"Test failed. Expected '%s'. Actual '%s'.", expectedOutput, actualResult)
 	}
 }
 
@@ -594,9 +631,8 @@ func TestUnixTimestampStrToTime(t *testing.T) {
 		t.Error(err)
 	}
 	if actualResult.UTC().String() != expectedOutput {
-		t.Error(fmt.Sprintf(
-			"Test failed. Expected '%s'. Actual '%s'.", expectedOutput, actualResult),
-		)
+		t.Errorf(
+			"Test failed. Expected '%s'. Actual '%s'.", expectedOutput, actualResult)
 	}
 	actualResult, err = UnixTimestampStrToTime(incorrectTime)
 	if err == nil {
@@ -628,21 +664,42 @@ func TestWriteFile(t *testing.T) {
 	if err != nil {
 		t.Errorf("Test failed. Common WriteFile error: %s", err)
 	}
+
+	err = WriteFile("", nil)
+	if err == nil {
+		t.Error("Test failed. Common WriteFile allowed bad path")
+	}
+}
+
+func TestRemoveFile(t *testing.T) {
+	TestWriteFile(t)
+	path := "../testdata/writefiletest"
+	err := RemoveFile(path)
+	if err != nil {
+		t.Errorf("Test failed. Common RemoveFile error: %s", err)
+	}
+
+	TestOutputCSV(t)
+	path = "../testdata/dump"
+	err = RemoveFile(path)
+	if err != nil {
+		t.Errorf("Test failed. Common RemoveFile error: %s", err)
+	}
 }
 
 func TestGetURIPath(t *testing.T) {
 	t.Parallel()
 	// mapping of input vs expected result
 	testTable := map[string]string{
-		"https://api.gdax.com/accounts":         "/accounts",
-		"https://api.gdax.com/accounts?a=1&b=2": "/accounts?a=1&b=2",
-		"ht:tp:/invalidurl":                     "",
+		"https://api.gdax.com/accounts":           "/accounts",
+		"https://api.gdax.com/accounts?a=1&b=2":   "/accounts?a=1&b=2",
+		"http://www.google.com/accounts?!@#$%;^^": "",
 	}
 	for testInput, expectedOutput := range testTable {
 		actualOutput := GetURIPath(testInput)
 		if actualOutput != expectedOutput {
-			t.Error(fmt.Sprintf("Test failed. Expected '%s'. Actual '%s'.",
-				expectedOutput, actualOutput))
+			t.Errorf("Test failed. Expected '%s'. Actual '%s'.",
+				expectedOutput, actualOutput)
 		}
 	}
 }

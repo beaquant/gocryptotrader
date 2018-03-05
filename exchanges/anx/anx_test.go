@@ -35,8 +35,9 @@ func TestSetDefaults(t *testing.T) {
 
 func TestSetup(t *testing.T) {
 	setup := ANX{}
+	setup.Name = "ANX"
 	anxSetupConfig := config.GetConfig()
-	anxSetupConfig.LoadConfig("../../testdata/configtest.dat")
+	anxSetupConfig.LoadConfig("../../testdata/configtest.json")
 	anxConfig, err := anxSetupConfig.GetExchangeConfig("ANX")
 	if err != nil {
 		t.Error("Test Failed - ANX Setup() init error")
@@ -49,7 +50,7 @@ func TestSetup(t *testing.T) {
 	if setup.AuthenticatedAPISupport != false {
 		t.Error("Test Failed - ANX Setup() incorrect values set")
 	}
-	if len(setup.APIKey) <= 0 {
+	if len(setup.APIKey) != 0 {
 		t.Error("Test Failed - ANX Setup() incorrect values set")
 	}
 	if len(setup.APISecret) != 0 {
@@ -96,6 +97,17 @@ func TestGetTicker(t *testing.T) {
 	}
 	if ticker.Result != "success" {
 		t.Error("Test Failed - ANX GetTicker() unsuccessful")
+	}
+}
+
+func TestGetDepth(t *testing.T) {
+	a := ANX{}
+	ticker, err := a.GetDepth("BTCUSD")
+	if err != nil {
+		t.Errorf("Test Failed - ANX GetDepth() error: %s", err)
+	}
+	if ticker.Result != "success" {
+		t.Error("Test Failed - ANX GetDepth() unsuccessful")
 	}
 }
 

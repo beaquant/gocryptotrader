@@ -1,0 +1,14 @@
+<!-- TODO: figure out if the <nav> should go inside of a <header> element. -->
+<nav class="docs-navbar">
+    <mat-toolbar color="primary">
+        <a (click)="sidebarService.toggle()" class="material-icons">&#xE5D2;</a>
+        <a mat-button class="docs-button" routerLink="/" aria-label="Angular Material">
+            <span>GoCryptoTrader</span>
+        </a>
+        <app-selected-currency></app-selected-currency>
+        <div class="flex-spacer"></div>
+        <theme-picker></theme-picker>
+        &nbsp;
+        &nbsp;
+    </mat-toolbar>
+</nav>

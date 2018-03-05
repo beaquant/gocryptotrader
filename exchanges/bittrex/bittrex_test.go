@@ -2,6 +2,7 @@ package bittrex
 
 import (
 	"testing"
+	"time"
 
 	"github.com/thrasher-/gocryptotrader/config"
 )
@@ -13,6 +14,7 @@ const (
 )
 
 func TestSetDefaults(t *testing.T) {
+	t.Parallel()
 	b := Bittrex{}
 	b.SetDefaults()
 	if b.GetName() != "Bittrex" {
@@ -21,24 +23,35 @@ func TestSetDefaults(t *testing.T) {
 }
 
 func TestSetup(t *testing.T) {
-	exch := config.ExchangeConfig{
-		Name:   "Bittrex",
-		APIKey: apiKey,
-	}
-	exch.Enabled = true
+	t.Parallel()
 	b := Bittrex{}
-	b.Setup(exch)
-	if b.APIKey != apiKey {
-		t.Error("Test Failed - Bittrex - Setup() error")
+	b.Name = "Bittrex"
+	cfg := config.GetConfig()
+	cfg.LoadConfig("../../testdata/configtest.json")
+	bConfig, err := cfg.GetExchangeConfig("Bittrex")
+	if err != nil {
+		t.Error("Test Failed - Bittrex Setup() init error")
 	}
-	exch.Enabled = false
-	b.Setup(exch)
+
+	b.SetDefaults()
+	b.Setup(bConfig)
+
+	if !b.IsEnabled() || b.AuthenticatedAPISupport || b.RESTPollingDelay != time.Duration(10) ||
+		b.Verbose || b.Websocket || len(b.BaseCurrencies) < 1 ||
+		len(b.AvailablePairs) < 1 || len(b.EnabledPairs) < 1 {
+		t.Error("Test Failed - Bittrex Setup values not set correctly")
+	}
+
+	bConfig.Enabled = false
+	b.Setup(bConfig)
+
 	if b.IsEnabled() {
-		t.Error("Test Failed - Bittrex - Setup() error")
+		t.Error("Test failed - Bittrex TestSetup incorrect value")
 	}
 }
 
 func TestGetMarkets(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	_, err := obj.GetMarkets()
 	if err != nil {
@@ -47,6 +60,7 @@ func TestGetMarkets(t *testing.T) {
 }
 
 func TestGetCurrencies(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	_, err := obj.GetCurrencies()
 	if err != nil {
@@ -55,6 +69,7 @@ func TestGetCurrencies(t *testing.T) {
 }
 
 func TestGetTicker(t *testing.T) {
+	t.Parallel()
 	invalid := ""
 	btc := "btc-ltc"
 	doge := "btc-DOGE"
@@ -75,6 +90,7 @@ func TestGetTicker(t *testing.T) {
 }
 
 func TestGetMarketSummaries(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	_, err := obj.GetMarketSummaries()
 	if err != nil {
@@ -83,6 +99,7 @@ func TestGetMarketSummaries(t *testing.T) {
 }
 
 func TestGetMarketSummary(t *testing.T) {
+	t.Parallel()
 	pairOne := "BTC-LTC"
 	invalid := "WigWham"
 
@@ -98,6 +115,7 @@ func TestGetMarketSummary(t *testing.T) {
 }
 
 func TestGetOrderbook(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	_, err := obj.GetOrderbook("btc-ltc")
 	if err != nil {
@@ -110,6 +128,7 @@ func TestGetOrderbook(t *testing.T) {
 }
 
 func TestGetMarketHistory(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	_, err := obj.GetMarketHistory("btc-ltc")
 	if err != nil {
@@ -122,6 +141,7 @@ func TestGetMarketHistory(t *testing.T) {
 }
 
 func TestPlaceBuyLimit(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	obj.APIKey = apiKey
 	obj.APISecret = apiSecret
@@ -132,6 +152,7 @@ func TestPlaceBuyLimit(t *testing.T) {
 }
 
 func TestPlaceSellLimit(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	obj.APIKey = apiKey
 	obj.APISecret = apiSecret
@@ -142,6 +163,7 @@ func TestPlaceSellLimit(t *testing.T) {
 }
 
 func TestGetOpenOrders(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	obj.APIKey = apiKey
 	obj.APISecret = apiSecret
@@ -156,6 +178,7 @@ func TestGetOpenOrders(t *testing.T) {
 }
 
 func TestCancelOrder(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	obj.APIKey = apiKey
 	obj.APISecret = apiSecret
@@ -166,6 +189,7 @@ func TestCancelOrder(t *testing.T) {
 }
 
 func TestGetAccountBalances(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	obj.APIKey = apiKey
 	obj.APISecret = apiSecret
@@ -176,6 +200,7 @@ func TestGetAccountBalances(t *testing.T) {
 }
 
 func TestGetAccountBalanceByCurrency(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	obj.APIKey = apiKey
 	obj.APISecret = apiSecret
@@ -186,6 +211,7 @@ func TestGetAccountBalanceByCurrency(t *testing.T) {
 }
 
 func TestGetDepositAddress(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	obj.APIKey = apiKey
 	obj.APISecret = apiSecret
@@ -196,6 +222,7 @@ func TestGetDepositAddress(t *testing.T) {
 }
 
 func TestWithdraw(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	obj.APIKey = apiKey
 	obj.APISecret = apiSecret
@@ -206,6 +233,7 @@ func TestWithdraw(t *testing.T) {
 }
 
 func TestGetOrder(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	obj.APIKey = apiKey
 	obj.APISecret = apiSecret
@@ -220,6 +248,7 @@ func TestGetOrder(t *testing.T) {
 }
 
 func TestGetOrderHistory(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	obj.APIKey = apiKey
 	obj.APISecret = apiSecret
@@ -234,20 +263,22 @@ func TestGetOrderHistory(t *testing.T) {
 }
 
 func TestGetWithdrawelHistory(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	obj.APIKey = apiKey
 	obj.APISecret = apiSecret
-	_, err := obj.GetWithdrawelHistory("")
+	_, err := obj.GetWithdrawalHistory("")
 	if err == nil {
-		t.Error("Test Failed - Bittrex - GetWithdrawelHistory() error")
+		t.Error("Test Failed - Bittrex - GetWithdrawalHistory() error")
 	}
-	_, err = obj.GetWithdrawelHistory("btc-ltc")
+	_, err = obj.GetWithdrawalHistory("btc-ltc")
 	if err == nil {
-		t.Error("Test Failed - Bittrex - GetWithdrawelHistory() error")
+		t.Error("Test Failed - Bittrex - GetWithdrawalHistory() error")
 	}
 }
 
 func TestGetDepositHistory(t *testing.T) {
+	t.Parallel()
 	obj := Bittrex{}
 	obj.APIKey = apiKey
 	obj.APISecret = apiSecret

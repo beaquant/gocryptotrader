@@ -3,3 +3,11 @@ config.dat
 node_modules
 lib
 .vscode
+
+testdata/dump
+testdata/writefiletest
+
+# InteliJ
+.idea
+*.iml
+vendor/

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/thrasher-/gocryptotrader/common"
+	"github.com/thrasher-/gocryptotrader/currency/pair"
 )
 
 // Rate holds the current exchange rates for the currency pair.
@@ -39,10 +40,18 @@ type YahooJSONResponse struct {
 	}
 }
 
+// FixerResponse contains the data fields for the Fixer API response
+type FixerResponse struct {
+	Base  string             `json:"base"`
+	Date  string             `json:"date"`
+	Rates map[string]float64 `json:"rates"`
+}
+
 const (
 	maxCurrencyPairsPerRequest = 350
-	yahooYQLURL                = "http://query.yahooapis.com/v1/public/yql"
+	yahooYQLURL                = "https://query.yahooapis.com/v1/public/yql?"
 	yahooDatabase              = "store://datatables.org/alltableswithkeys"
+	fixerAPI                   = "http://api.fixer.io/latest"
 	// DefaultCurrencies has the default minimum of FIAT values
 	DefaultCurrencies = "USD,AUD,EUR,CNY"
 	// DefaultCryptoCurrencies has the default minimum of crytpocurrency values
@@ -53,113 +62,108 @@ const (
 // queries
 var (
 	CurrencyStore             map[string]Rate
-	BaseCurrencies            string
-	CryptoCurrencies          string
+	CurrencyStoreFixer        map[string]float64
+	BaseCurrencies            []string
+	CryptoCurrencies          []string
 	ErrCurrencyDataNotFetched = errors.New("yahoo currency data has not been fetched yet")
 	ErrCurrencyNotFound       = errors.New("unable to find specified currency")
 	ErrQueryingYahoo          = errors.New("unable to query Yahoo currency values")
 	ErrQueryingYahooZeroCount = errors.New("yahoo returned zero currency data")
+	YahooEnabled              = false
 )
+
+// SetProvider sets the currency exchange service used by the currency
+// converter
+func SetProvider(yahooEnabled bool) {
+	if yahooEnabled {
+		YahooEnabled = true
+		return
+	}
+	YahooEnabled = false
+}
+
+// SwapProvider swaps the currency exchange service used by the curency
+// converter
+func SwapProvider() {
+	if YahooEnabled {
+		YahooEnabled = false
+		return
+	}
+	YahooEnabled = true
+}
+
+// GetProvider returns the currency exchange service used by the currency
+// converter
+func GetProvider() string {
+	if YahooEnabled {
+		return "yahoo"
+	}
+	return "fixer"
+}
 
 // IsDefaultCurrency checks if the currency passed in matches the default
 // FIAT currency
 func IsDefaultCurrency(currency string) bool {
-	return common.StringContains(
-		DefaultCurrencies, common.StringToUpper(currency),
-	)
+	defaultCurrencies := common.SplitStrings(DefaultCurrencies, ",")
+	return common.StringDataCompare(defaultCurrencies, common.StringToUpper(currency))
 }
 
 // IsDefaultCryptocurrency checks if the currency passed in matches the default
 // CRYPTO currency
 func IsDefaultCryptocurrency(currency string) bool {
-	return common.StringContains(
-		DefaultCryptoCurrencies, common.StringToUpper(currency),
-	)
+	cryptoCurrencies := common.SplitStrings(DefaultCryptoCurrencies, ",")
+	return common.StringDataCompare(cryptoCurrencies, common.StringToUpper(currency))
 }
 
 // IsFiatCurrency checks if the currency passed is an enabled FIAT currency
 func IsFiatCurrency(currency string) bool {
-	if BaseCurrencies == "" {
+	if len(BaseCurrencies) == 0 {
 		log.Println("IsFiatCurrency: BaseCurrencies string variable not populated")
+		return false
 	}
-	return common.StringContains(BaseCurrencies, common.StringToUpper(currency))
+	return common.StringDataCompare(BaseCurrencies, common.StringToUpper(currency))
 }
 
 // IsCryptocurrency checks if the currency passed is an enabled CRYPTO currency.
 func IsCryptocurrency(currency string) bool {
-	if CryptoCurrencies == "" {
+	if len(CryptoCurrencies) == 0 {
 		log.Println(
 			"IsCryptocurrency: CryptoCurrencies string variable not populated",
 		)
+		return false
 	}
-	return common.StringContains(CryptoCurrencies, common.StringToUpper(currency))
+	return common.StringDataCompare(CryptoCurrencies, common.StringToUpper(currency))
 }
 
-// ContainsSeparator checks to see if the string passed contains "-" or "_"
-// separated strings and returns what the separators were.
-func ContainsSeparator(input string) (bool, string) {
-	separators := []string{"-", "_"}
-	var separatorsContainer []string
-
-	for _, x := range separators {
-		if common.StringContains(input, x) {
-			separatorsContainer = append(separatorsContainer, x)
-		}
-	}
-	if len(separatorsContainer) == 0 {
-		return false, ""
-	}
-	return true, strings.Join(separatorsContainer, ",")
+// IsCryptoPair checks to see if the pair is a crypto pair. For example, BTCLTC
+func IsCryptoPair(p pair.CurrencyPair) bool {
+	return IsCryptocurrency(p.FirstCurrency.String()) && IsCryptocurrency(p.SecondCurrency.String())
 }
 
-// ContainsBaseCurrencyIndex checks the currency against the baseCurrencies and
-// returns a bool and its corresponding basecurrency.
-func ContainsBaseCurrencyIndex(baseCurrencies []string, currency string) (bool, string) {
-	for _, x := range baseCurrencies {
-		if common.StringContains(currency, x) {
-			return true, x
-		}
-	}
-	return false, ""
+// IsCryptoFiatPair checks to see if the pair is a crypto fiat pair. For example, BTCUSD
+func IsCryptoFiatPair(p pair.CurrencyPair) bool {
+	return IsCryptocurrency(p.FirstCurrency.String()) && !IsCryptocurrency(p.SecondCurrency.String()) ||
+		!IsCryptocurrency(p.FirstCurrency.String()) && IsCryptocurrency(p.SecondCurrency.String())
 }
 
-// ContainsBaseCurrency checks the currency against the baseCurrencies and
-// returns a bool
-func ContainsBaseCurrency(baseCurrencies []string, currency string) bool {
-	for _, x := range baseCurrencies {
-		if common.StringContains(currency, x) {
-			return true
-		}
-	}
-	return false
+// IsFiatPair checks to see if the pair is a fiar pair. For example. EURUSD
+func IsFiatPair(p pair.CurrencyPair) bool {
+	return IsFiatCurrency(p.FirstCurrency.String()) && IsFiatCurrency(p.SecondCurrency.String())
 }
 
-// CheckAndAddCurrency checks the string you passed with the input string array,
-// if not already added, checks to see if it is part of the default currency
-// list and returns the appended string.
-func CheckAndAddCurrency(input []string, check string) []string {
-	for _, x := range input {
-		if IsDefaultCurrency(x) {
-			if IsDefaultCurrency(check) {
-				if check == x {
-					return input
-				}
-				continue
+// Update updates the local crypto currency or base currency store
+func Update(input []string, cryptos bool) {
+	for x := range input {
+		if cryptos {
+			if !common.StringDataCompare(CryptoCurrencies, input[x]) {
+				CryptoCurrencies = append(CryptoCurrencies, common.StringToUpper(input[x]))
 			}
-			return input
-		} else if IsDefaultCryptocurrency(x) {
-			if IsDefaultCryptocurrency(check) {
-				if check == x {
-					return input
-				}
-				continue
+		} else {
+			if !common.StringDataCompare(BaseCurrencies, input[x]) {
+				BaseCurrencies = append(BaseCurrencies, common.StringToUpper(input[x]))
 			}
-			return input
 		}
-		return input
 	}
-	input = append(input, check)
-	return input
 }
 
 // SeedCurrencyData takes the desired FIAT currency string, if not defined the
@@ -170,17 +174,17 @@ func SeedCurrencyData(fiatCurrencies string) error {
 		fiatCurrencies = DefaultCurrencies
 	}
 
-	err := QueryYahooCurrencyValues(fiatCurrencies)
-	if err != nil {
-		return ErrQueryingYahoo
+	if YahooEnabled {
+		return QueryYahooCurrencyValues(fiatCurrencies)
 	}
-	return nil
+
+	return FetchFixerCurrencyData()
 }
 
 // MakecurrencyPairs takes all supported currency and turns them into pairs.
 func MakecurrencyPairs(supportedCurrencies string) string {
 	currencies := common.SplitStrings(supportedCurrencies, ",")
-	pairs := []string{}
+	var pairs []string
 	count := len(currencies)
 	for i := 0; i < count; i++ {
 		currency := currencies[i]
@@ -196,20 +200,97 @@ func MakecurrencyPairs(supportedCurrencies string) string {
 // ConvertCurrency for example converts $1 USD to the equivalent Japanese Yen
 // or vice versa.
 func ConvertCurrency(amount float64, from, to string) (float64, error) {
-	currency := common.StringToUpper(from + to)
-	if CurrencyStore[currency].Name != currency {
-		err := SeedCurrencyData(currency[:len(from)] + "," + currency[len(to):])
+	from = common.StringToUpper(from)
+	to = common.StringToUpper(to)
+
+	if from == to {
+		return amount, nil
+	}
+
+	if from == "RUR" {
+		from = "RUB"
+	}
+
+	if to == "RUR" {
+		to = "RUB"
+	}
+
+	if YahooEnabled {
+		currency := from + to
+		_, ok := CurrencyStore[currency]
+		if !ok {
+			err := SeedCurrencyData(currency[:len(from)] + "," + currency[len(to):])
+			if err != nil {
+				return 0, err
+			}
+		}
+
+		result, ok := CurrencyStore[currency]
+		if !ok {
+			return 0, ErrCurrencyNotFound
+		}
+		return amount * result.Rate, nil
+	}
+
+	if len(CurrencyStoreFixer) == 0 {
+		err := FetchFixerCurrencyData()
 		if err != nil {
 			return 0, err
 		}
 	}
 
-	for x, y := range CurrencyStore {
-		if x == currency {
-			return amount * y.Rate, nil
+	var resultFrom float64
+	var resultTo float64
+
+	// First check if we're converting to USD, USD doesn't exist in the rates map
+	if to == "USD" {
+		resultFrom, ok := CurrencyStoreFixer[from]
+		if !ok {
+			return 0, ErrCurrencyNotFound
 		}
+		return amount / resultFrom, nil
 	}
-	return 0, ErrCurrencyNotFound
+
+	// Check to see if we're converting from USD
+	if from == "USD" {
+		resultTo, ok := CurrencyStoreFixer[to]
+		if !ok {
+			return 0, ErrCurrencyNotFound
+		}
+		return resultTo * amount, nil
+	}
+
+	// Otherwise convert to USD, then to the target currency
+	resultFrom, ok := CurrencyStoreFixer[from]
+	if !ok {
+		return 0, ErrCurrencyNotFound
+	}
+
+	converted := amount / resultFrom
+	resultTo, ok = CurrencyStoreFixer[to]
+	if !ok {
+		return 0, ErrCurrencyNotFound
+	}
+
+	return converted * resultTo, nil
+}
+
+// FetchFixerCurrencyData seeds the variable C
+func FetchFixerCurrencyData() error {
+	var result FixerResponse
+	values := url.Values{}
+	values.Set("base", "USD")
+	url := common.EncodeURLValues(fixerAPI, values)
+
+	CurrencyStoreFixer = make(map[string]float64)
+
+	err := common.SendHTTPGetRequest(url, true, false, &result)
+	if err != nil {
+		return err
+	}
+
+	CurrencyStoreFixer = result.Rates
+	return nil
 }
 
 // FetchYahooCurrencyData seeds the variable CurrencyStore; this is a
@@ -232,6 +313,8 @@ func FetchYahooCurrencyData(currencyPairs []string) error {
 	if err != nil {
 		return err
 	}
+
+	log.Printf("Currency recv: %s", resp)
 
 	yahooResp := YahooJSONResponse{}
 	err = common.JSONDecode([]byte(resp), &yahooResp)
@@ -258,30 +341,5 @@ func QueryYahooCurrencyValues(currencies string) error {
 		"%d fiat currency pairs generated. Fetching Yahoo currency data (this may take a minute)..\n",
 		len(currencyPairs),
 	)
-	var err error
-	var pairs []string
-	index := 0
-
-	if len(currencyPairs) > maxCurrencyPairsPerRequest {
-		for index < len(currencyPairs) {
-			if len(currencyPairs)-index > maxCurrencyPairsPerRequest {
-				pairs = currencyPairs[index : index+maxCurrencyPairsPerRequest]
-				index += maxCurrencyPairsPerRequest
-			} else {
-				pairs = currencyPairs[index:]
-				index += (len(currencyPairs) - index)
-			}
-			err = FetchYahooCurrencyData(pairs)
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		pairs = currencyPairs[index:]
-		err = FetchYahooCurrencyData(pairs)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return FetchYahooCurrencyData(currencyPairs)
 }

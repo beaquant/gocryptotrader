@@ -20,7 +20,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"reflect"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -136,10 +139,31 @@ func StringContains(input, substring string) bool {
 	return strings.Contains(input, substring)
 }
 
-// DataContains checks the substring array with an input and returns a bool
-func DataContains(haystack []string, needle string) bool {
+// StringDataContains checks the substring array with an input and returns a bool
+func StringDataContains(haystack []string, needle string) bool {
 	data := strings.Join(haystack, ",")
 	return strings.Contains(data, needle)
+}
+
+// StringDataCompare data checks the substring array with an input and returns a bool
+func StringDataCompare(haystack []string, needle string) bool {
+	for x := range haystack {
+		if haystack[x] == needle {
+			return true
+		}
+	}
+	return false
+}
+
+// StringDataContainsUpper checks the substring array with an input and returns
+// a bool irrespective of lower or upper case strings
+func StringDataContainsUpper(haystack []string, needle string) bool {
+	for _, data := range haystack {
+		if strings.Contains(StringToUpper(data), StringToUpper(needle)) {
+			return true
+		}
+	}
+	return false
 }
 
 // JoinStrings joins an array together with the required separator and returns
@@ -157,6 +181,11 @@ func SplitStrings(input, separator string) []string {
 // TrimString trims unwanted prefixes or postfixes
 func TrimString(input, cutset string) string {
 	return strings.Trim(input, cutset)
+}
+
+// ReplaceString replaces a string with another
+func ReplaceString(input, old, new string, n int) string {
+	return strings.Replace(input, old, new, n)
 }
 
 // StringToUpper changes strings to uppercase
@@ -289,15 +318,18 @@ func SendHTTPRequest(method, path string, headers map[string]string, body io.Rea
 // SendHTTPGetRequest sends a simple get request using a url string & JSON
 // decodes the response into a struct pointer you have supplied. Returns an error
 // on failure.
-func SendHTTPGetRequest(url string, jsonDecode bool, result interface{}) error {
+func SendHTTPGetRequest(url string, jsonDecode, isVerbose bool, result interface{}) error {
+	if isVerbose {
+		log.Println("Raw URL: ", url)
+	}
+
 	res, err := http.Get(url)
 	if err != nil {
 		return err
 	}
 
 	if res.StatusCode != 200 {
-		log.Printf("HTTP status code: %d\n", res.StatusCode)
-		return errors.New("status code was not 200")
+		return fmt.Errorf("common.SendHTTPGetRequest() error: HTTP status code %d", res.StatusCode)
 	}
 
 	contents, err := ioutil.ReadAll(res.Body)
@@ -305,16 +337,18 @@ func SendHTTPGetRequest(url string, jsonDecode bool, result interface{}) error {
 		return err
 	}
 
+	if isVerbose {
+		log.Println("Raw Resp: ", string(contents[:]))
+	}
+
 	defer res.Body.Close()
 
 	if jsonDecode {
-		err := JSONDecode(contents, &result)
+		err := JSONDecode(contents, result)
 		if err != nil {
 			log.Println(string(contents[:]))
 			return err
 		}
-	} else {
-		result = &contents
 	}
 
 	return nil
@@ -327,6 +361,9 @@ func JSONEncode(v interface{}) ([]byte, error) {
 
 // JSONDecode decodes JSON data into a structure
 func JSONDecode(data []byte, to interface{}) error {
+	if !StringContains(reflect.ValueOf(to).Type().String(), "*") {
+		return errors.New("json decode error - memory address not supplied")
+	}
 	return json.Unmarshal(data, to)
 }
 
@@ -378,7 +415,8 @@ func OutputCSV(path string, data [][]string) error {
 		return err
 	}
 
-	defer writer.Flush()
+	writer.Flush()
+	file.Close()
 	return nil
 }
 
@@ -415,6 +453,11 @@ func WriteFile(file string, data []byte) error {
 	return nil
 }
 
+// RemoveFile removes a file
+func RemoveFile(file string) error {
+	return os.Remove(file)
+}
+
 // GetURIPath returns the path of a URL given a URI
 func GetURIPath(uri string) string {
 	urip, err := url.Parse(uri)
@@ -425,4 +468,22 @@ func GetURIPath(uri string) string {
 		return fmt.Sprintf("%s?%s", urip.Path, urip.RawQuery)
 	}
 	return urip.Path
+}
+
+// GetExecutablePath returns the executables launch path
+func GetExecutablePath() (string, error) {
+	ex, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Dir(ex), nil
+}
+
+// GetOSPathSlash returns the slash used by the operating systems
+// file system
+func GetOSPathSlash() string {
+	if runtime.GOOS == "windows" {
+		return "\\"
+	}
+	return "/"
 }

@@ -5,7 +5,67 @@ import (
 	"testing"
 
 	"github.com/thrasher-/gocryptotrader/common"
+	"github.com/thrasher-/gocryptotrader/currency/pair"
 )
+
+func TestSetProvider(t *testing.T) {
+	defaultVal := YahooEnabled
+	expected := "yahoo"
+	SetProvider(true)
+	actual := GetProvider()
+	if expected != actual {
+		t.Errorf("Test failed. TestGetProvider expected %s got %s", expected, actual)
+	}
+
+	SetProvider(false)
+	expected = "fixer"
+	actual = GetProvider()
+	if expected != actual {
+		t.Errorf("Test failed. TestGetProvider expected %s got %s", expected, actual)
+	}
+
+	SetProvider(defaultVal)
+}
+
+func TestSwapProvider(t *testing.T) {
+	defaultVal := YahooEnabled
+	expected := "fixer"
+	SetProvider(true)
+	SwapProvider()
+	actual := GetProvider()
+	if expected != actual {
+		t.Errorf("Test failed. TestGetProvider expected %s got %s", expected, actual)
+	}
+
+	SetProvider(false)
+	SwapProvider()
+	expected = "yahoo"
+	actual = GetProvider()
+	if expected != actual {
+		t.Errorf("Test failed. TestGetProvider expected %s got %s", expected, actual)
+	}
+
+	SetProvider(defaultVal)
+}
+
+func TestGetProvider(t *testing.T) {
+	defaultVal := YahooEnabled
+	SetProvider(true)
+	expected := "yahoo"
+	actual := GetProvider()
+	if expected != actual {
+		t.Errorf("Test failed. TestGetProvider expected %s got %s", expected, actual)
+	}
+
+	SetProvider(false)
+	expected = "fixer"
+	actual = GetProvider()
+	if expected != actual {
+		t.Errorf("Test failed. TestGetProvider expected %s got %s", expected, actual)
+	}
+
+	SetProvider(defaultVal)
+}
 
 func TestIsDefaultCurrency(t *testing.T) {
 	t.Parallel()
@@ -56,9 +116,11 @@ func TestIsDefaultCryptocurrency(t *testing.T) {
 }
 
 func TestIsFiatCurrency(t *testing.T) {
-	t.Parallel()
+	if IsFiatCurrency("") {
+		t.Error("Test failed. TestIsFiatCurrency returned true on an empty string")
+	}
 
-	BaseCurrencies = "USD,AUD"
+	BaseCurrencies = []string{"USD", "AUD"}
 	var str1, str2, str3 string = "BTC", "USD", "birds123"
 
 	if IsFiatCurrency(str1) {
@@ -79,9 +141,11 @@ func TestIsFiatCurrency(t *testing.T) {
 }
 
 func TestIsCryptocurrency(t *testing.T) {
-	t.Parallel()
+	if IsCryptocurrency("") {
+		t.Error("Test failed. TestIsCryptocurrency returned true on an empty string")
+	}
 
-	CryptoCurrencies = "BTC,LTC,DASH"
+	CryptoCurrencies = []string{"BTC", "LTC", "DASH"}
 	var str1, str2, str3 string = "USD", "BTC", "pterodactyl123"
 
 	if IsCryptocurrency(str1) {
@@ -101,185 +165,107 @@ func TestIsCryptocurrency(t *testing.T) {
 	}
 }
 
-func TestContainsSeparator(t *testing.T) {
-	t.Parallel()
+func TestIsCryptoPair(t *testing.T) {
+	if IsCryptocurrency("") {
+		t.Error("Test failed. TestIsCryptocurrency returned true on an empty string")
+	}
 
-	var str1, str2, str3, str4 string = "ding-dong", "ding_dong", "dong_ding-dang", "ding"
+	CryptoCurrencies = []string{"BTC", "LTC", "DASH"}
+	BaseCurrencies = []string{"USD"}
 
-	doesIt, whatIsIt := ContainsSeparator(str1)
-	if doesIt != true || whatIsIt != "-" {
-		t.Errorf(
-			"Test Failed. ContainsSeparator: \nCannot find separator, %s.", str1,
-		)
+	if !IsCryptoPair(pair.NewCurrencyPair("BTC", "LTC")) {
+		t.Error("Test Failed. TestIsCryptoPair. Expected true result")
 	}
-	doesIt2, whatIsIt2 := ContainsSeparator(str2)
-	if doesIt2 != true || whatIsIt2 != "_" {
-		t.Errorf(
-			"Test Failed. ContainsSeparator: \nCannot find separator, %s.", str2,
-		)
-	}
-	doesIt3, whatIsIt3 := ContainsSeparator(str3)
-	if doesIt3 != true || len(whatIsIt3) != 3 {
-		t.Errorf(
-			"Test Failed. ContainsSeparator: \nCannot find or incorrect separator, %s.",
-			str3,
-		)
-	}
-	doesIt4, whatIsIt4 := ContainsSeparator(str4)
-	if doesIt4 != false || whatIsIt4 != "" {
-		t.Errorf(
-			"Test Failed. ContainsSeparator: \nReturn Issues with string, %s.", str3,
-		)
+
+	if IsCryptoPair(pair.NewCurrencyPair("BTC", "USD")) {
+		t.Error("Test Failed. TestIsCryptoPair. Expected false result")
 	}
 }
 
-func TestContainsBaseCurrencyIndex(t *testing.T) {
-	t.Parallel()
-
-	baseCurrencies := []string{"USD", "AUD", "EUR", "CNY"}
-	currency1, currency2 := "USD", "DINGDONG"
-
-	isIt, whatIsIt := ContainsBaseCurrencyIndex(baseCurrencies, currency1)
-	if !isIt && whatIsIt != "USD" {
-		t.Errorf(
-			"Test Failed. ContainsBaseCurrencyIndex: \nReturned: %t & %s, with Currency as %s.",
-			isIt, whatIsIt, currency1,
-		)
+func TestIsCryptoFiatPair(t *testing.T) {
+	if IsCryptocurrency("") {
+		t.Error("Test failed. TestIsCryptocurrency returned true on an empty string")
 	}
-	isIt2, whatIsIt2 := ContainsBaseCurrencyIndex(baseCurrencies, currency2)
-	if isIt2 && whatIsIt2 != "DINGDONG" {
-		t.Errorf(
-			"Test Failed. ContainsBaseCurrencyIndex: \nReturned: %t & %s, with Currency as %s.",
-			isIt2, whatIsIt2, currency2,
-		)
+
+	CryptoCurrencies = []string{"BTC", "LTC", "DASH"}
+	BaseCurrencies = []string{"USD"}
+
+	if !IsCryptoFiatPair(pair.NewCurrencyPair("BTC", "USD")) {
+		t.Error("Test Failed. TestIsCryptoPair. Expected true result")
+	}
+
+	if IsCryptoFiatPair(pair.NewCurrencyPair("BTC", "LTC")) {
+		t.Error("Test Failed. TestIsCryptoPair. Expected false result")
 	}
 }
 
-func TestContainsBaseCurrency(t *testing.T) {
-	t.Parallel()
+func TestIsFiatPair(t *testing.T) {
+	CryptoCurrencies = []string{"BTC", "LTC", "DASH"}
+	BaseCurrencies = []string{"USD", "AUD", "EUR"}
 
-	baseCurrencies := []string{"USD", "AUD", "EUR", "CNY"}
-	currency1, currency2 := "USD", "DINGDONG"
-
-	isIt := ContainsBaseCurrency(baseCurrencies, currency1)
-	if !isIt {
-		t.Errorf("Test Failed. ContainsBaseCurrency: \nReturned: %t, with Currency as %s.",
-			isIt, currency1,
-		)
+	if !IsFiatPair(pair.NewCurrencyPair("AUD", "USD")) {
+		t.Error("Test Failed. TestIsFiatPair. Expected true result")
 	}
-	isIt2 := ContainsBaseCurrency(baseCurrencies, currency2)
-	if isIt2 {
-		t.Errorf("Test Failed. ContainsBaseCurrency: \nReturned: %t, with Currency as %s.",
-			isIt2, currency2,
-		)
+
+	if IsFiatPair(pair.NewCurrencyPair("BTC", "AUD")) {
+		t.Error("Test Failed. TestIsFiatPair. Expected false result")
 	}
 }
 
-func TestCheckAndAddCurrency(t *testing.T) {
-	t.Parallel()
+func TestUpdate(t *testing.T) {
+	CryptoCurrencies = []string{"BTC", "LTC", "DASH"}
+	BaseCurrencies = []string{"USD", "AUD"}
 
-	inputFiat := []string{"USD", "AUD", "EUR"}
-	inputCrypto := []string{"BTC", "LTC", "ETH", "DOGE", "DASH", "XRP"}
-	testError := []string{"Testy"}
-	fiat := "USD"
-	fiatIncrease := "CNY"
-	crypto := "LTC"
-	cryptoIncrease := "XMR"
-	obtuse := "CATSANDDOGS"
+	Update([]string{"ETH"}, true)
+	Update([]string{"JPY"}, false)
 
-	appendedString := CheckAndAddCurrency(inputFiat, fiat)
-	if len(appendedString) > len(inputFiat) {
-		t.Errorf(
-			"Test Failed. CheckAndAddCurrency: Error with inputFiat, currency as %s.",
-			fiat,
-		)
-	}
-	appendedString = CheckAndAddCurrency(inputFiat, fiatIncrease)
-	if len(appendedString) <= len(inputFiat) {
-		t.Errorf(
-			"Test Failed. CheckAndAddCurrency: Error with inputFiat, currency as %s.",
-			fiatIncrease,
-		)
-	}
-	appendedString = CheckAndAddCurrency(inputFiat, crypto)
-	if len(appendedString) > len(inputFiat) {
-		t.Log(appendedString)
-		t.Errorf(
-			"Test Failed. CheckAndAddCurrency: Error with inputFiat, currency as %s.",
-			crypto,
-		)
-	}
-	appendedString = CheckAndAddCurrency(inputFiat, obtuse)
-	if len(appendedString) > len(inputFiat) {
-		t.Errorf(
-			"Test Failed. CheckAndAddCurrency: Error with inputFiat, currency as %s.",
-			obtuse,
+	if !IsCryptocurrency("ETH") {
+		t.Error(
+			"Test Failed. TestUpdate: \nCannot match currency: ETH",
 		)
 	}
 
-	appendedString = CheckAndAddCurrency(inputCrypto, crypto)
-	if len(appendedString) > len(inputCrypto) {
+	if !IsFiatCurrency("JPY") {
 		t.Errorf(
-			"Test Failed. CheckAndAddCurrency: Error with inputCrytpo, currency as %s.",
-			crypto,
-		)
-	}
-	appendedString = CheckAndAddCurrency(inputCrypto, cryptoIncrease)
-	if len(appendedString) <= len(inputCrypto) {
-		t.Errorf(
-			"Test Failed. CheckAndAddCurrency: Error with inputCrytpo, currency as %s.",
-			cryptoIncrease,
-		)
-	}
-	appendedString = CheckAndAddCurrency(inputCrypto, fiat)
-	if len(appendedString) > len(inputCrypto) {
-		t.Errorf(
-			"Test Failed. CheckAndAddCurrency: Error with inputCrytpo, currency as %s.",
-			fiat,
-		)
-	}
-	appendedString = CheckAndAddCurrency(inputCrypto, obtuse)
-	if len(appendedString) > len(inputCrypto) {
-		t.Errorf(
-			"Test Failed. CheckAndAddCurrency: Error with inputCrytpo, currency as %s.",
-			obtuse,
-		)
-	}
-
-	appendedString = CheckAndAddCurrency(testError, "USD")
-	if appendedString[0] != testError[0] {
-		t.Errorf(
-			"Test Failed. CheckAndAddCurrency: Error with inputCrytpo, basecurrency as %s.",
-			testError,
+			"Test Failed. TestUpdate: \nCannot match currency: JPY",
 		)
 	}
 }
 
 func TestSeedCurrencyData(t *testing.T) {
-	currencyRequestDefault := ""
-	currencyRequestUSDAUD := "USD,AUD"
-	currencyRequestObtuse := "WigWham"
+	//	SetProvider(true)
+	if YahooEnabled {
+		currencyRequestDefault := ""
+		currencyRequestUSDAUD := "USD,AUD"
+		currencyRequestObtuse := "WigWham"
 
-	err := SeedCurrencyData(currencyRequestDefault)
+		err := SeedCurrencyData(currencyRequestDefault)
+		if err != nil {
+			t.Errorf(
+				"Test Failed. SeedCurrencyData: Error %s with currency as %s.",
+				err, currencyRequestDefault,
+			)
+		}
+		err2 := SeedCurrencyData(currencyRequestUSDAUD)
+		if err2 != nil {
+			t.Errorf(
+				"Test Failed. SeedCurrencyData: Error %s with currency as %s.",
+				err2, currencyRequestUSDAUD,
+			)
+		}
+		err3 := SeedCurrencyData(currencyRequestObtuse)
+		if err3 == nil {
+			t.Errorf(
+				"Test Failed. SeedCurrencyData: Error %s with currency as %s.",
+				err3, currencyRequestObtuse,
+			)
+		}
+	}
+
+	//SetProvider(false)
+	err := SeedCurrencyData("")
 	if err != nil {
-		t.Errorf(
-			"Test Failed. SeedCurrencyData: Error %s with currency as %s.",
-			err, currencyRequestDefault,
-		)
-	}
-	err2 := SeedCurrencyData(currencyRequestUSDAUD)
-	if err2 != nil {
-		t.Errorf(
-			"Test Failed. SeedCurrencyData: Error %s with currency as %s.",
-			err2, currencyRequestUSDAUD,
-		)
-	}
-	err3 := SeedCurrencyData(currencyRequestObtuse)
-	if err3 == nil {
-		t.Errorf(
-			"Test Failed. SeedCurrencyData: Error %s with currency as %s.",
-			err3, currencyRequestObtuse,
-		)
+		t.Errorf("Test failed. SeedCurrencyData via Fixer. Error: %s", err)
 	}
 }
 
@@ -297,12 +283,11 @@ func TestMakecurrencyPairs(t *testing.T) {
 }
 
 func TestConvertCurrency(t *testing.T) {
-	fiatCurrencies := DefaultCurrencies
-	for _, currencyFrom := range common.SplitStrings(fiatCurrencies, ",") {
-		for _, currencyTo := range common.SplitStrings(fiatCurrencies, ",") {
-			if currencyFrom == currencyTo {
-				continue
-			} else {
+	//	SetProvider(true)
+	if YahooEnabled {
+		fiatCurrencies := DefaultCurrencies
+		for _, currencyFrom := range common.SplitStrings(fiatCurrencies, ",") {
+			for _, currencyTo := range common.SplitStrings(fiatCurrencies, ",") {
 				floatyMcfloat, err := ConvertCurrency(1000, currencyFrom, currencyTo)
 				if err != nil {
 					t.Errorf(
@@ -321,9 +306,58 @@ func TestConvertCurrency(t *testing.T) {
 			}
 		}
 	}
+
+	//	SetProvider(false)
+	_, err := ConvertCurrency(1000, "USD", "AUD")
+	if err != nil {
+		t.Errorf("Test failed. ConvertCurrency USD -> AUD. Error %s", err)
+	}
+
+	_, err = ConvertCurrency(1000, "AUD", "USD")
+	if err != nil {
+		t.Errorf("Test failed. ConvertCurrency AUD -> AUD. Error %s", err)
+	}
+
+	_, err = ConvertCurrency(1000, "CNY", "AUD")
+	if err != nil {
+		t.Errorf("Test failed. ConvertCurrency USD -> AUD. Error %s", err)
+	}
+
+	// Test non-existent currencies
+
+	_, err = ConvertCurrency(1000, "ASDF", "USD")
+	if err == nil {
+		t.Errorf("Test failed. ConvertCurrency non-existent currency -> USD. Error %s", err)
+	}
+
+	_, err = ConvertCurrency(1000, "USD", "ASDF")
+	if err == nil {
+		t.Errorf("Test failed. ConvertCurrency USD -> non-existent currency. Error %s", err)
+	}
+
+	_, err = ConvertCurrency(1000, "CNY", "UAHF")
+	if err == nil {
+		t.Errorf("Test failed. ConvertCurrency non-USD currency CNY -> non-existent currency. Error %s", err)
+	}
+
+	_, err = ConvertCurrency(1000, "UASF", "UAHF")
+	if err == nil {
+		t.Errorf("Test failed. ConvertCurrency non-existent currency -> non-existent currency. Error %s", err)
+	}
+}
+
+func TestFetchFixerCurrencyData(t *testing.T) {
+	err := FetchFixerCurrencyData()
+	if err != nil {
+		t.Errorf("Test failed. FetchFixerCurrencyData returned %s", err)
+	}
 }
 
 func TestFetchYahooCurrencyData(t *testing.T) {
+	if !YahooEnabled {
+		t.Skip()
+	}
+
 	t.Parallel()
 	var fetchData []string
 	fiatCurrencies := DefaultCurrencies
@@ -344,6 +378,10 @@ func TestFetchYahooCurrencyData(t *testing.T) {
 }
 
 func TestQueryYahooCurrencyValues(t *testing.T) {
+	if !YahooEnabled {
+		t.Skip()
+	}
+
 	err := QueryYahooCurrencyValues(DefaultCurrencies)
 	if err != nil {
 		t.Errorf("Test Failed. QueryYahooCurrencyValues: Error, %s", err)

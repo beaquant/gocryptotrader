@@ -2,6 +2,7 @@ package okcoin
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/url"
 	"strconv"
@@ -11,64 +12,66 @@ import (
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/config"
 	"github.com/thrasher-/gocryptotrader/exchanges"
+	"github.com/thrasher-/gocryptotrader/exchanges/ticker"
 )
 
 const (
-	OKCOIN_API_URL                 = "https://www.okcoin.com/api/v1/"
-	OKCOIN_API_URL_CHINA           = "https://www.okcoin.cn/api/v1/"
-	OKCOIN_API_VERSION             = "1"
-	OKCOIN_WEBSOCKET_URL           = "wss://real.okcoin.com:10440/websocket/okcoinapi"
-	OKCOIN_WEBSOCKET_URL_CHINA     = "wss://real.okcoin.cn:10440/websocket/okcoinapi"
-	OKCOIN_TICKER                  = "ticker.do"
-	OKCOIN_DEPTH                   = "depth.do"
-	OKCOIN_TRADES                  = "trades.do"
-	OKCOIN_KLINE                   = "kline.do"
-	OKCOIN_USERINFO                = "userinfo.do"
-	OKCOIN_TRADE                   = "trade.do"
-	OKCOIN_TRADE_HISTORY           = "trade_history.do"
-	OKCOIN_TRADE_BATCH             = "batch_trade.do"
-	OKCOIN_ORDER_CANCEL            = "cancel_order.do"
-	OKCOIN_ORDER_INFO              = "order_info.do"
-	OKCOIN_ORDERS_INFO             = "orders_info.do"
-	OKCOIN_ORDER_HISTORY           = "order_history.do"
-	OKCOIN_WITHDRAW                = "withdraw.do"
-	OKCOIN_WITHDRAW_CANCEL         = "cancel_withdraw.do"
-	OKCOIN_WITHDRAW_INFO           = "withdraw_info.do"
-	OKCOIN_ORDER_FEE               = "order_fee.do"
-	OKCOIN_LEND_DEPTH              = "lend_depth.do"
-	OKCOIN_BORROWS_INFO            = "borrows_info.do"
-	OKCOIN_BORROW_MONEY            = "borrow_money.do"
-	OKCOIN_BORROW_CANCEL           = "cancel_borrow.do"
-	OKCOIN_BORROW_ORDER_INFO       = "borrow_order_info.do"
-	OKCOIN_REPAYMENT               = "repayment.do"
-	OKCOIN_UNREPAYMENTS_INFO       = "unrepayments_info.do"
-	OKCOIN_ACCOUNT_RECORDS         = "account_records.do"
-	OKCOIN_FUTURES_TICKER          = "future_ticker.do"
-	OKCOIN_FUTURES_DEPTH           = "future_depth.do"
-	OKCOIN_FUTURES_TRADES          = "future_trades.do"
-	OKCOIN_FUTURES_INDEX           = "future_index.do"
-	OKCOIN_EXCHANGE_RATE           = "exchange_rate.do"
-	OKCOIN_FUTURES_ESTIMATED_PRICE = "future_estimated_price.do"
-	OKCOIN_FUTURES_KLINE           = "future_kline.do"
-	OKCOIN_FUTURES_HOLD_AMOUNT     = "future_hold_amount.do"
-	OKCOIN_FUTURES_USERINFO        = "future_userinfo.do"
-	OKCOIN_FUTURES_POSITION        = "future_position.do"
-	OKCOIN_FUTURES_TRADE           = "future_trade.do"
-	OKCOIN_FUTURES_TRADE_HISTORY   = "future_trades_history.do"
-	OKCOIN_FUTURES_TRADE_BATCH     = "future_batch_trade.do"
-	OKCOIN_FUTURES_CANCEL          = "future_cancel.do"
-	OKCOIN_FUTURES_ORDER_INFO      = "future_order_info.do"
-	OKCOIN_FUTURES_ORDERS_INFO     = "future_orders_info.do"
-	OKCOIN_FUTURES_USERINFO_4FIX   = "future_userinfo_4fix.do"
-	OKCOIN_FUTURES_POSITION_4FIX   = "future_position_4fix.do"
-	OKCOIN_FUTURES_EXPLOSIVE       = "future_explosive.do"
-	OKCOIN_FUTURES_DEVOLVE         = "future_devolve.do"
+	okcoinAPIURL                = "https://www.okcoin.com/api/v1/"
+	okcoinAPIURLChina           = "https://www.okcoin.cn/api/v1/"
+	okcoinAPIVersion            = "1"
+	okcoinWebsocketURL          = "wss://real.okcoin.com:10440/websocket/okcoinapi"
+	okcoinWebsocketURLChina     = "wss://real.okcoin.cn:10440/websocket/okcoinapi"
+	okcoinTicker                = "ticker.do"
+	okcoinDepth                 = "depth.do"
+	okcoinTrades                = "trades.do"
+	okcoinKline                 = "kline.do"
+	okcoinUserInfo              = "userinfo.do"
+	okcoinTrade                 = "trade.do"
+	okcoinTradeHistory          = "trade_history.do"
+	okcoinTradeBatch            = "batch_trade.do"
+	okcoinOrderCancel           = "cancel_order.do"
+	okcoinOrderInfo             = "order_info.do"
+	okcoinOrdersInfo            = "orders_info.do"
+	okcoinOrderHistory          = "order_history.do"
+	okcoinWithdraw              = "withdraw.do"
+	okcoinWithdrawCancel        = "cancel_withdraw.do"
+	okcoinWithdrawInfo          = "withdraw_info.do"
+	okcoinOrderFee              = "order_fee.do"
+	okcoinLendDepth             = "lend_depth.do"
+	okcoinBorrowsInfo           = "borrows_info.do"
+	okcoinBorrowMoney           = "borrow_money.do"
+	okcoinBorrowCancel          = "cancel_borrow.do"
+	okcoinBorrowOrderInfo       = "borrow_order_info.do"
+	okcoinRepayment             = "repayment.do"
+	okcoinUnrepaymentsInfo      = "unrepayments_info.do"
+	okcoinAccountRecords        = "account_records.do"
+	okcoinFuturesTicker         = "future_ticker.do"
+	okcoinFuturesDepth          = "future_depth.do"
+	okcoinFuturesTrades         = "future_trades.do"
+	okcoinFuturesIndex          = "future_index.do"
+	okcoinExchangeRate          = "exchange_rate.do"
+	okcoinFuturesEstimatedPrice = "future_estimated_price.do"
+	okcoinFuturesKline          = "future_kline.do"
+	okcoinFuturesHoldAmount     = "future_hold_amount.do"
+	okcoinFuturesUserInfo       = "future_userinfo.do"
+	okcoinFuturesPosition       = "future_position.do"
+	okcoinFuturesTrade          = "future_trade.do"
+	okcoinFuturesTradeHistory   = "future_trades_history.do"
+	okcoinFuturesTradeBatch     = "future_batch_trade.do"
+	okcoinFuturesCancel         = "future_cancel.do"
+	okcoinFuturesOrderInfo      = "future_order_info.do"
+	okcoinFuturesOrdersInfo     = "future_orders_info.do"
+	okcoinFuturesUserInfo4Fix   = "future_userinfo_4fix.do"
+	okcoinFuturesposition4Fix   = "future_position_4fix.do"
+	okcoinFuturesExplosive      = "future_explosive.do"
+	okcoinFuturesDevolve        = "future_devolve.do"
 )
 
 var (
 	okcoinDefaultsSet = false
 )
 
+// OKCoin is the overarching type across this package
 type OKCoin struct {
 	exchange.Base
 	RESTErrors      map[string]string
@@ -77,6 +80,15 @@ type OKCoin struct {
 	WebsocketConn   *websocket.Conn
 }
 
+// setCurrencyPairFormats sets currency pair formatting for this package
+func (o *OKCoin) setCurrencyPairFormats() {
+	o.RequestCurrencyPairFormat.Delimiter = "_"
+	o.RequestCurrencyPairFormat.Uppercase = false
+	o.ConfigCurrencyPairFormat.Delimiter = ""
+	o.ConfigCurrencyPairFormat.Uppercase = true
+}
+
+// SetDefaults sets current default values for this package
 func (o *OKCoin) SetDefaults() {
 	o.SetErrorDefaults()
 	o.SetWebsocketErrorDefaults()
@@ -85,19 +97,24 @@ func (o *OKCoin) SetDefaults() {
 	o.Websocket = false
 	o.RESTPollingDelay = 10
 	o.FuturesValues = []string{"this_week", "next_week", "quarter"}
+	o.AssetTypes = []string{ticker.Spot}
 
-	if !okcoinDefaultsSet {
-		o.APIUrl = OKCOIN_API_URL
+	if okcoinDefaultsSet {
+		o.AssetTypes = append(o.AssetTypes, o.FuturesValues...)
+		o.APIUrl = okcoinAPIURL
 		o.Name = "OKCOIN International"
-		o.WebsocketURL = OKCOIN_WEBSOCKET_URL
-		okcoinDefaultsSet = true
+		o.WebsocketURL = okcoinWebsocketURL
+		o.setCurrencyPairFormats()
 	} else {
-		o.APIUrl = OKCOIN_API_URL_CHINA
+		o.APIUrl = okcoinAPIURLChina
 		o.Name = "OKCOIN China"
-		o.WebsocketURL = OKCOIN_WEBSOCKET_URL_CHINA
+		o.WebsocketURL = okcoinWebsocketURLChina
+		okcoinDefaultsSet = true
+		o.setCurrencyPairFormats()
 	}
 }
 
+// Setup sets exchange configuration parameters
 func (o *OKCoin) Setup(exch config.ExchangeConfig) {
 	if !exch.Enabled {
 		o.SetEnabled(false)
@@ -111,35 +128,45 @@ func (o *OKCoin) Setup(exch config.ExchangeConfig) {
 		o.BaseCurrencies = common.SplitStrings(exch.BaseCurrencies, ",")
 		o.AvailablePairs = common.SplitStrings(exch.AvailablePairs, ",")
 		o.EnabledPairs = common.SplitStrings(exch.EnabledPairs, ",")
+		err := o.SetCurrencyPairFormat()
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = o.SetAssetTypes()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
+// GetFee returns current fees for the exchange
 func (o *OKCoin) GetFee(maker bool) float64 {
-	if o.APIUrl == OKCOIN_API_URL {
+	if o.APIUrl == okcoinAPIURL {
 		if maker {
 			return o.MakerFee
-		} else {
-			return o.TakerFee
 		}
+		return o.TakerFee
 	}
 	// Chinese exchange does not have any trading fees
 	return 0
 }
 
-func (o *OKCoin) GetTicker(symbol string) (OKCoinTicker, error) {
-	resp := OKCoinTickerResponse{}
+// GetTicker returns the current ticker
+func (o *OKCoin) GetTicker(symbol string) (Ticker, error) {
+	resp := TickerResponse{}
 	vals := url.Values{}
 	vals.Set("symbol", symbol)
-	path := common.EncodeURLValues(o.APIUrl+OKCOIN_TICKER, vals)
-	err := common.SendHTTPGetRequest(path, true, &resp)
+	path := common.EncodeURLValues(o.APIUrl+okcoinTicker, vals)
+	err := common.SendHTTPGetRequest(path, true, o.Verbose, &resp)
 	if err != nil {
-		return OKCoinTicker{}, err
+		return Ticker{}, err
 	}
 	return resp.Ticker, nil
 }
 
-func (o *OKCoin) GetOrderBook(symbol string, size int64, merge bool) (OKCoinOrderbook, error) {
-	resp := OKCoinOrderbook{}
+// GetOrderBook returns the current order book by size
+func (o *OKCoin) GetOrderBook(symbol string, size int64, merge bool) (Orderbook, error) {
+	resp := Orderbook{}
 	vals := url.Values{}
 	vals.Set("symbol", symbol)
 	if size != 0 {
@@ -149,30 +176,32 @@ func (o *OKCoin) GetOrderBook(symbol string, size int64, merge bool) (OKCoinOrde
 		vals.Set("merge", "1")
 	}
 
-	path := common.EncodeURLValues(o.APIUrl+OKCOIN_DEPTH, vals)
-	err := common.SendHTTPGetRequest(path, true, &resp)
+	path := common.EncodeURLValues(o.APIUrl+okcoinDepth, vals)
+	err := common.SendHTTPGetRequest(path, true, o.Verbose, &resp)
 	if err != nil {
 		return resp, err
 	}
 	return resp, nil
 }
 
-func (o *OKCoin) GetTrades(symbol string, since int64) ([]OKCoinTrades, error) {
-	result := []OKCoinTrades{}
+// GetTrades returns historic trades since a timestamp
+func (o *OKCoin) GetTrades(symbol string, since int64) ([]Trades, error) {
+	result := []Trades{}
 	vals := url.Values{}
 	vals.Set("symbol", symbol)
 	if since != 0 {
 		vals.Set("since", strconv.FormatInt(since, 10))
 	}
 
-	path := common.EncodeURLValues(o.APIUrl+OKCOIN_TRADES, vals)
-	err := common.SendHTTPGetRequest(path, true, &result)
+	path := common.EncodeURLValues(o.APIUrl+okcoinTrades, vals)
+	err := common.SendHTTPGetRequest(path, true, o.Verbose, &result)
 	if err != nil {
 		return nil, err
 	}
 	return result, nil
 }
 
+// GetKline returns kline data
 func (o *OKCoin) GetKline(symbol, klineType string, size, since int64) ([]interface{}, error) {
 	resp := []interface{}{}
 	vals := url.Values{}
@@ -187,8 +216,8 @@ func (o *OKCoin) GetKline(symbol, klineType string, size, since int64) ([]interf
 		vals.Set("since", strconv.FormatInt(since, 10))
 	}
 
-	path := common.EncodeURLValues(o.APIUrl+OKCOIN_KLINE, vals)
-	err := common.SendHTTPGetRequest(path, true, &resp)
+	path := common.EncodeURLValues(o.APIUrl+okcoinKline, vals)
+	err := common.SendHTTPGetRequest(path, true, o.Verbose, &resp)
 	if err != nil {
 		return nil, err
 	}
@@ -196,21 +225,23 @@ func (o *OKCoin) GetKline(symbol, klineType string, size, since int64) ([]interf
 	return resp, nil
 }
 
-func (o *OKCoin) GetFuturesTicker(symbol, contractType string) (OKCoinFuturesTicker, error) {
-	resp := OKCoinFuturesTickerResponse{}
+// GetFuturesTicker returns a current ticker for the futures market
+func (o *OKCoin) GetFuturesTicker(symbol, contractType string) (FuturesTicker, error) {
+	resp := FuturesTickerResponse{}
 	vals := url.Values{}
 	vals.Set("symbol", symbol)
 	vals.Set("contract_type", contractType)
-	path := common.EncodeURLValues(o.APIUrl+OKCOIN_FUTURES_TICKER, vals)
-	err := common.SendHTTPGetRequest(path, true, &resp)
+	path := common.EncodeURLValues(o.APIUrl+okcoinFuturesTicker, vals)
+	err := common.SendHTTPGetRequest(path, true, o.Verbose, &resp)
 	if err != nil {
-		return OKCoinFuturesTicker{}, err
+		return FuturesTicker{}, err
 	}
 	return resp.Ticker, nil
 }
 
-func (o *OKCoin) GetFuturesDepth(symbol, contractType string, size int64, merge bool) (OKCoinOrderbook, error) {
-	result := OKCoinOrderbook{}
+// GetFuturesDepth returns current depth for the futures market
+func (o *OKCoin) GetFuturesDepth(symbol, contractType string, size int64, merge bool) (Orderbook, error) {
+	result := Orderbook{}
 	vals := url.Values{}
 	vals.Set("symbol", symbol)
 	vals.Set("contract_type", contractType)
@@ -222,28 +253,30 @@ func (o *OKCoin) GetFuturesDepth(symbol, contractType string, size int64, merge 
 		vals.Set("merge", "1")
 	}
 
-	path := common.EncodeURLValues(o.APIUrl+OKCOIN_FUTURES_DEPTH, vals)
-	err := common.SendHTTPGetRequest(path, true, &result)
+	path := common.EncodeURLValues(o.APIUrl+okcoinFuturesDepth, vals)
+	err := common.SendHTTPGetRequest(path, true, o.Verbose, &result)
 	if err != nil {
 		return result, err
 	}
 	return result, nil
 }
 
-func (o *OKCoin) GetFuturesTrades(symbol, contractType string) ([]OKCoinFuturesTrades, error) {
-	result := []OKCoinFuturesTrades{}
+// GetFuturesTrades returns historic trades for the futures market
+func (o *OKCoin) GetFuturesTrades(symbol, contractType string) ([]FuturesTrades, error) {
+	result := []FuturesTrades{}
 	vals := url.Values{}
 	vals.Set("symbol", symbol)
 	vals.Set("contract_type", contractType)
 
-	path := common.EncodeURLValues(o.APIUrl+OKCOIN_FUTURES_TRADES, vals)
-	err := common.SendHTTPGetRequest(path, true, &result)
+	path := common.EncodeURLValues(o.APIUrl+okcoinFuturesTrades, vals)
+	err := common.SendHTTPGetRequest(path, true, o.Verbose, &result)
 	if err != nil {
 		return nil, err
 	}
 	return result, nil
 }
 
+// GetFuturesIndex returns an index for the futures market
 func (o *OKCoin) GetFuturesIndex(symbol string) (float64, error) {
 	type Response struct {
 		Index float64 `json:"future_index"`
@@ -253,27 +286,30 @@ func (o *OKCoin) GetFuturesIndex(symbol string) (float64, error) {
 	vals := url.Values{}
 	vals.Set("symbol", symbol)
 
-	path := common.EncodeURLValues(o.APIUrl+OKCOIN_FUTURES_INDEX, vals)
-	err := common.SendHTTPGetRequest(path, true, &result)
+	path := common.EncodeURLValues(o.APIUrl+okcoinFuturesIndex, vals)
+	err := common.SendHTTPGetRequest(path, true, o.Verbose, &result)
 	if err != nil {
 		return 0, err
 	}
 	return result.Index, nil
 }
 
+// GetFuturesExchangeRate returns the exchange rate for the futures market
 func (o *OKCoin) GetFuturesExchangeRate() (float64, error) {
 	type Response struct {
 		Rate float64 `json:"rate"`
 	}
 
 	result := Response{}
-	err := common.SendHTTPGetRequest(o.APIUrl+OKCOIN_EXCHANGE_RATE, true, &result)
+	err := common.SendHTTPGetRequest(o.APIUrl+okcoinExchangeRate, true, o.Verbose, &result)
 	if err != nil {
 		return result.Rate, err
 	}
 	return result.Rate, nil
 }
 
+// GetFuturesEstimatedPrice returns a current estimated futures price for a
+// currency
 func (o *OKCoin) GetFuturesEstimatedPrice(symbol string) (float64, error) {
 	type Response struct {
 		Price float64 `json:"forecast_price"`
@@ -282,14 +318,16 @@ func (o *OKCoin) GetFuturesEstimatedPrice(symbol string) (float64, error) {
 	result := Response{}
 	vals := url.Values{}
 	vals.Set("symbol", symbol)
-	path := common.EncodeURLValues(o.APIUrl+OKCOIN_FUTURES_ESTIMATED_PRICE, vals)
-	err := common.SendHTTPGetRequest(path, true, &result)
+	path := common.EncodeURLValues(o.APIUrl+okcoinFuturesEstimatedPrice, vals)
+	err := common.SendHTTPGetRequest(path, true, o.Verbose, &result)
 	if err != nil {
 		return result.Price, err
 	}
 	return result.Price, nil
 }
 
+// GetFuturesKline returns kline data for a specific currency on the futures
+// market
 func (o *OKCoin) GetFuturesKline(symbol, klineType, contractType string, size, since int64) ([]interface{}, error) {
 	resp := []interface{}{}
 	vals := url.Values{}
@@ -304,8 +342,8 @@ func (o *OKCoin) GetFuturesKline(symbol, klineType, contractType string, size, s
 		vals.Set("since", strconv.FormatInt(since, 10))
 	}
 
-	path := common.EncodeURLValues(o.APIUrl+OKCOIN_FUTURES_KLINE, vals)
-	err := common.SendHTTPGetRequest(path, true, &resp)
+	path := common.EncodeURLValues(o.APIUrl+okcoinFuturesKline, vals)
+	err := common.SendHTTPGetRequest(path, true, o.Verbose, &resp)
 
 	if err != nil {
 		return nil, err
@@ -313,14 +351,15 @@ func (o *OKCoin) GetFuturesKline(symbol, klineType, contractType string, size, s
 	return resp, nil
 }
 
-func (o *OKCoin) GetFuturesHoldAmount(symbol, contractType string) ([]OKCoinFuturesHoldAmount, error) {
-	resp := []OKCoinFuturesHoldAmount{}
+// GetFuturesHoldAmount returns the hold amount for a futures trade
+func (o *OKCoin) GetFuturesHoldAmount(symbol, contractType string) ([]FuturesHoldAmount, error) {
+	resp := []FuturesHoldAmount{}
 	vals := url.Values{}
 	vals.Set("symbol", symbol)
 	vals.Set("contract_type", contractType)
 
-	path := common.EncodeURLValues(o.APIUrl+OKCOIN_FUTURES_HOLD_AMOUNT, vals)
-	err := common.SendHTTPGetRequest(path, true, &resp)
+	path := common.EncodeURLValues(o.APIUrl+okcoinFuturesHoldAmount, vals)
+	err := common.SendHTTPGetRequest(path, true, o.Verbose, &resp)
 
 	if err != nil {
 		return nil, err
@@ -328,9 +367,10 @@ func (o *OKCoin) GetFuturesHoldAmount(symbol, contractType string) ([]OKCoinFutu
 	return resp, nil
 }
 
-func (o *OKCoin) GetFuturesExplosive(symbol, contractType string, status, currentPage, pageLength int64) ([]OKCoinFuturesExplosive, error) {
+// GetFuturesExplosive returns the explosive for a futures contract
+func (o *OKCoin) GetFuturesExplosive(symbol, contractType string, status, currentPage, pageLength int64) ([]FuturesExplosive, error) {
 	type Response struct {
-		Data []OKCoinFuturesExplosive `json:"data"`
+		Data []FuturesExplosive `json:"data"`
 	}
 	resp := Response{}
 	vals := url.Values{}
@@ -340,8 +380,8 @@ func (o *OKCoin) GetFuturesExplosive(symbol, contractType string, status, curren
 	vals.Set("current_page", strconv.FormatInt(currentPage, 10))
 	vals.Set("page_length", strconv.FormatInt(pageLength, 10))
 
-	path := common.EncodeURLValues(o.APIUrl+OKCOIN_FUTURES_EXPLOSIVE, vals)
-	err := common.SendHTTPGetRequest(path, true, &resp)
+	path := common.EncodeURLValues(o.APIUrl+okcoinFuturesExplosive, vals)
+	err := common.SendHTTPGetRequest(path, true, o.Verbose, &resp)
 
 	if err != nil {
 		return nil, err
@@ -350,9 +390,10 @@ func (o *OKCoin) GetFuturesExplosive(symbol, contractType string, status, curren
 	return resp.Data, nil
 }
 
-func (o *OKCoin) GetUserInfo() (OKCoinUserInfo, error) {
-	result := OKCoinUserInfo{}
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_USERINFO, url.Values{}, &result)
+// GetUserInfo returns user information associated with the calling APIkeys
+func (o *OKCoin) GetUserInfo() (UserInfo, error) {
+	result := UserInfo{}
+	err := o.SendAuthenticatedHTTPRequest(okcoinUserInfo, url.Values{}, &result)
 
 	if err != nil {
 		return result, err
@@ -361,6 +402,7 @@ func (o *OKCoin) GetUserInfo() (OKCoinUserInfo, error) {
 	return result, nil
 }
 
+// Trade initiates a new trade
 func (o *OKCoin) Trade(amount, price float64, symbol, orderType string) (int64, error) {
 	type Response struct {
 		Result  bool  `json:"result"`
@@ -374,26 +416,27 @@ func (o *OKCoin) Trade(amount, price float64, symbol, orderType string) (int64, 
 
 	result := Response{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_TRADE, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinTrade, v, &result)
 
 	if err != nil {
 		return 0, err
 	}
 
 	if !result.Result {
-		return 0, errors.New("Unable to place order.")
+		return 0, errors.New("unable to place order")
 	}
 
 	return result.OrderID, nil
 }
 
-func (o *OKCoin) GetTradeHistory(symbol string, TradeID int64) ([]OKCoinTrades, error) {
-	result := []OKCoinTrades{}
+// GetTradeHistory returns client trade history
+func (o *OKCoin) GetTradeHistory(symbol string, TradeID int64) ([]Trades, error) {
+	result := []Trades{}
 	v := url.Values{}
 	v.Set("symbol", symbol)
 	v.Set("since", strconv.FormatInt(TradeID, 10))
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_TRADE_HISTORY, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinTradeHistory, v, &result)
 
 	if err != nil {
 		return nil, err
@@ -402,14 +445,15 @@ func (o *OKCoin) GetTradeHistory(symbol string, TradeID int64) ([]OKCoinTrades, 
 	return result, nil
 }
 
-func (o *OKCoin) BatchTrade(orderData string, symbol, orderType string) (OKCoinBatchTrade, error) {
+// BatchTrade initiates a trade by batch order
+func (o *OKCoin) BatchTrade(orderData string, symbol, orderType string) (BatchTrade, error) {
 	v := url.Values{}
 	v.Set("orders_data", orderData)
 	v.Set("symbol", symbol)
 	v.Set("type", orderType)
-	result := OKCoinBatchTrade{}
+	result := BatchTrade{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_TRADE_BATCH, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinTradeBatch, v, &result)
 
 	if err != nil {
 		return result, err
@@ -418,60 +462,56 @@ func (o *OKCoin) BatchTrade(orderData string, symbol, orderType string) (OKCoinB
 	return result, nil
 }
 
-func (o *OKCoin) CancelOrder(orderID []int64, symbol string) (OKCoinCancelOrderResponse, error) {
+// CancelOrder cancels a specific order or list of orders by orderID
+func (o *OKCoin) CancelOrder(orderID []int64, symbol string) (CancelOrderResponse, error) {
 	v := url.Values{}
 	orders := []string{}
-	orderStr := ""
-	result := OKCoinCancelOrderResponse{}
+	result := CancelOrderResponse{}
+
+	orderStr := strconv.FormatInt(orderID[0], 10)
 
 	if len(orderID) > 1 {
 		for x := range orderID {
 			orders = append(orders, strconv.FormatInt(orderID[x], 10))
 		}
 		orderStr = common.JoinStrings(orders, ",")
-	} else {
-		orderStr = strconv.FormatInt(orderID[0], 10)
 	}
 
 	v.Set("order_id", orderStr)
 	v.Set("symbol", symbol)
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_ORDER_CANCEL, v, &result)
-
-	if err != nil {
-		return result, err
-	}
-
-	return result, nil
+	return result, o.SendAuthenticatedHTTPRequest(okcoinOrderCancel, v, &result)
 }
 
-func (o *OKCoin) GetOrderInfo(orderID int64, symbol string) ([]OKCoinOrderInfo, error) {
+// GetOrderInfo returns order information by orderID
+func (o *OKCoin) GetOrderInfo(orderID int64, symbol string) ([]OrderInfo, error) {
 	type Response struct {
-		Result bool              `json:"result"`
-		Orders []OKCoinOrderInfo `json:"orders"`
+		Result bool        `json:"result"`
+		Orders []OrderInfo `json:"orders"`
 	}
 	v := url.Values{}
 	v.Set("symbol", symbol)
 	v.Set("order_id", strconv.FormatInt(orderID, 10))
 	result := Response{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_ORDER_INFO, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinOrderInfo, v, &result)
 
 	if err != nil {
 		return nil, err
 	}
 
 	if result.Result != true {
-		return nil, errors.New("Unable to retrieve order info.")
+		return nil, errors.New("unable to retrieve order info")
 	}
 
 	return result.Orders, nil
 }
 
-func (o *OKCoin) GetOrderInfoBatch(orderID []int64, symbol string) ([]OKCoinOrderInfo, error) {
+// GetOrderInfoBatch returns order info on a batch of orders
+func (o *OKCoin) GetOrderInfoBatch(orderID []int64, symbol string) ([]OrderInfo, error) {
 	type Response struct {
-		Result bool              `json:"result"`
-		Orders []OKCoinOrderInfo `json:"orders"`
+		Result bool        `json:"result"`
+		Orders []OrderInfo `json:"orders"`
 	}
 
 	orders := []string{}
@@ -484,28 +524,29 @@ func (o *OKCoin) GetOrderInfoBatch(orderID []int64, symbol string) ([]OKCoinOrde
 	v.Set("order_id", common.JoinStrings(orders, ","))
 	result := Response{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_ORDER_INFO, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinOrderInfo, v, &result)
 
 	if err != nil {
 		return nil, err
 	}
 
 	if result.Result != true {
-		return nil, errors.New("Unable to retrieve order info.")
+		return nil, errors.New("unable to retrieve order info")
 	}
 
 	return result.Orders, nil
 }
 
-func (o *OKCoin) GetOrderHistory(pageLength, currentPage int64, status, symbol string) (OKCoinOrderHistory, error) {
+// GetOrderHistory returns a history of orders
+func (o *OKCoin) GetOrderHistory(pageLength, currentPage int64, status, symbol string) (OrderHistory, error) {
 	v := url.Values{}
 	v.Set("symbol", symbol)
 	v.Set("status", status)
 	v.Set("current_page", strconv.FormatInt(currentPage, 10))
 	v.Set("page_length", strconv.FormatInt(pageLength, 10))
-	result := OKCoinOrderHistory{}
+	result := OrderHistory{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_ORDER_HISTORY, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinOrderHistory, v, &result)
 
 	if err != nil {
 		return result, err
@@ -514,6 +555,7 @@ func (o *OKCoin) GetOrderHistory(pageLength, currentPage int64, status, symbol s
 	return result, nil
 }
 
+// Withdrawal withdraws a cryptocurrency to a supplied address
 func (o *OKCoin) Withdrawal(symbol string, fee float64, tradePWD, address string, amount float64) (int, error) {
 	v := url.Values{}
 	v.Set("symbol", symbol)
@@ -524,67 +566,70 @@ func (o *OKCoin) Withdrawal(symbol string, fee float64, tradePWD, address string
 	v.Set("trade_pwd", tradePWD)
 	v.Set("withdraw_address", address)
 	v.Set("withdraw_amount", strconv.FormatFloat(amount, 'f', -1, 64))
-	result := OKCoinWithdrawalResponse{}
+	result := WithdrawalResponse{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_WITHDRAW, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinWithdraw, v, &result)
 
 	if err != nil {
 		return 0, err
 	}
 
 	if !result.Result {
-		return 0, errors.New("Unable to process withdrawal request.")
+		return 0, errors.New("unable to process withdrawal request")
 	}
 
 	return result.WithdrawID, nil
 }
 
+// CancelWithdrawal cancels a withdrawal
 func (o *OKCoin) CancelWithdrawal(symbol string, withdrawalID int64) (int, error) {
 	v := url.Values{}
 	v.Set("symbol", symbol)
 	v.Set("withdrawal_id", strconv.FormatInt(withdrawalID, 10))
-	result := OKCoinWithdrawalResponse{}
+	result := WithdrawalResponse{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_WITHDRAW_CANCEL, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinWithdrawCancel, v, &result)
 
 	if err != nil {
 		return 0, err
 	}
 
 	if !result.Result {
-		return 0, errors.New("Unable to process withdrawal cancel request.")
+		return 0, errors.New("unable to process withdrawal cancel request")
 	}
 
 	return result.WithdrawID, nil
 }
 
-func (o *OKCoin) GetWithdrawalInfo(symbol string, withdrawalID int64) ([]OKCoinWithdrawInfo, error) {
+// GetWithdrawalInfo returns withdrawal information
+func (o *OKCoin) GetWithdrawalInfo(symbol string, withdrawalID int64) ([]WithdrawInfo, error) {
 	type Response struct {
 		Result   bool
-		Withdraw []OKCoinWithdrawInfo `json:"withdraw"`
+		Withdraw []WithdrawInfo `json:"withdraw"`
 	}
 	v := url.Values{}
 	v.Set("symbol", symbol)
 	v.Set("withdrawal_id", strconv.FormatInt(withdrawalID, 10))
 	result := Response{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_WITHDRAW_INFO, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinWithdrawInfo, v, &result)
 
 	if err != nil {
 		return nil, err
 	}
 
 	if !result.Result {
-		return nil, errors.New("Unable to process withdrawal cancel request.")
+		return nil, errors.New("unable to process withdrawal cancel request")
 	}
 
 	return result.Withdraw, nil
 }
 
-func (o *OKCoin) GetOrderFeeInfo(symbol string, orderID int64) (OKCoinOrderFeeInfo, error) {
+// GetOrderFeeInfo returns order fee information
+func (o *OKCoin) GetOrderFeeInfo(symbol string, orderID int64) (OrderFeeInfo, error) {
 	type Response struct {
-		Data   OKCoinOrderFeeInfo `json:"data"`
-		Result bool               `json:"result"`
+		Data   OrderFeeInfo `json:"data"`
+		Result bool         `json:"result"`
 	}
 
 	v := url.Values{}
@@ -592,29 +637,30 @@ func (o *OKCoin) GetOrderFeeInfo(symbol string, orderID int64) (OKCoinOrderFeeIn
 	v.Set("order_id", strconv.FormatInt(orderID, 10))
 	result := Response{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_ORDER_FEE, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinOrderFee, v, &result)
 
 	if err != nil {
 		return result.Data, err
 	}
 
 	if !result.Result {
-		return result.Data, errors.New("Unable to get order fee info.")
+		return result.Data, errors.New("unable to get order fee info")
 	}
 
 	return result.Data, nil
 }
 
-func (o *OKCoin) GetLendDepth(symbol string) ([]OKCoinLendDepth, error) {
+// GetLendDepth returns the depth of lends
+func (o *OKCoin) GetLendDepth(symbol string) ([]LendDepth, error) {
 	type Response struct {
-		LendDepth []OKCoinLendDepth `json:"lend_depth"`
+		LendDepth []LendDepth `json:"lend_depth"`
 	}
 
 	v := url.Values{}
 	v.Set("symbol", symbol)
 	result := Response{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_LEND_DEPTH, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinLendDepth, v, &result)
 
 	if err != nil {
 		return nil, err
@@ -623,12 +669,13 @@ func (o *OKCoin) GetLendDepth(symbol string) ([]OKCoinLendDepth, error) {
 	return result.LendDepth, nil
 }
 
-func (o *OKCoin) GetBorrowInfo(symbol string) (OKCoinBorrowInfo, error) {
+// GetBorrowInfo returns borrow information
+func (o *OKCoin) GetBorrowInfo(symbol string) (BorrowInfo, error) {
 	v := url.Values{}
 	v.Set("symbol", symbol)
-	result := OKCoinBorrowInfo{}
+	result := BorrowInfo{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_BORROWS_INFO, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinBorrowsInfo, v, &result)
 
 	if err != nil {
 		return result, nil
@@ -637,113 +684,119 @@ func (o *OKCoin) GetBorrowInfo(symbol string) (OKCoinBorrowInfo, error) {
 	return result, nil
 }
 
+// Borrow initiates a borrow request
 func (o *OKCoin) Borrow(symbol, days string, amount, rate float64) (int, error) {
 	v := url.Values{}
 	v.Set("symbol", symbol)
 	v.Set("days", days)
 	v.Set("amount", strconv.FormatFloat(amount, 'f', -1, 64))
 	v.Set("rate", strconv.FormatFloat(rate, 'f', -1, 64))
-	result := OKCoinBorrowResponse{}
+	result := BorrowResponse{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_BORROW_MONEY, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinBorrowMoney, v, &result)
 
 	if err != nil {
 		return 0, err
 	}
 
 	if !result.Result {
-		return 0, errors.New("Unable to borrow.")
+		return 0, errors.New("unable to borrow")
 	}
 
 	return result.BorrowID, nil
 }
 
+// CancelBorrow cancels a borrow request
 func (o *OKCoin) CancelBorrow(symbol string, borrowID int64) (bool, error) {
 	v := url.Values{}
 	v.Set("symbol", symbol)
 	v.Set("borrow_id", strconv.FormatInt(borrowID, 10))
-	result := OKCoinBorrowResponse{}
+	result := BorrowResponse{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_BORROW_CANCEL, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinBorrowCancel, v, &result)
 
 	if err != nil {
 		return false, err
 	}
 
 	if !result.Result {
-		return false, errors.New("Unable to cancel borrow.")
+		return false, errors.New("unable to cancel borrow")
 	}
 
 	return true, nil
 }
 
-func (o *OKCoin) GetBorrowOrderInfo(borrowID int64) (OKCoinBorrowInfo, error) {
+// GetBorrowOrderInfo returns information about a borrow order
+func (o *OKCoin) GetBorrowOrderInfo(borrowID int64) (BorrowInfo, error) {
 	type Response struct {
-		Result      bool             `json:"result"`
-		BorrowOrder OKCoinBorrowInfo `json:"borrow_order"`
+		Result      bool       `json:"result"`
+		BorrowOrder BorrowInfo `json:"borrow_order"`
 	}
 
 	v := url.Values{}
 	v.Set("borrow_id", strconv.FormatInt(borrowID, 10))
 	result := Response{}
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_BORROW_ORDER_INFO, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinBorrowOrderInfo, v, &result)
 
 	if err != nil {
 		return result.BorrowOrder, err
 	}
 
 	if !result.Result {
-		return result.BorrowOrder, errors.New("Unable to get borrow info.")
+		return result.BorrowOrder, errors.New("unable to get borrow info")
 	}
 
 	return result.BorrowOrder, nil
 }
 
+// GetRepaymentInfo returns information on a repayment
 func (o *OKCoin) GetRepaymentInfo(borrowID int64) (bool, error) {
 	v := url.Values{}
 	v.Set("borrow_id", strconv.FormatInt(borrowID, 10))
-	result := OKCoinBorrowResponse{}
+	result := BorrowResponse{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_REPAYMENT, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinRepayment, v, &result)
 
 	if err != nil {
 		return false, err
 	}
 
 	if !result.Result {
-		return false, errors.New("Unable to get repayment info.")
+		return false, errors.New("unable to get repayment info")
 	}
 
 	return true, nil
 }
 
-func (o *OKCoin) GetUnrepaymentsInfo(symbol string, currentPage, pageLength int) ([]OKCoinBorrowOrder, error) {
+// GetUnrepaymentsInfo returns information on an unrepayment
+func (o *OKCoin) GetUnrepaymentsInfo(symbol string, currentPage, pageLength int) ([]BorrowOrder, error) {
 	type Response struct {
-		Unrepayments []OKCoinBorrowOrder `json:"unrepayments"`
-		Result       bool                `json:"result"`
+		Unrepayments []BorrowOrder `json:"unrepayments"`
+		Result       bool          `json:"result"`
 	}
 	v := url.Values{}
 	v.Set("symbol", symbol)
 	v.Set("current_page", strconv.Itoa(currentPage))
 	v.Set("page_length", strconv.Itoa(pageLength))
 	result := Response{}
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_UNREPAYMENTS_INFO, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinUnrepaymentsInfo, v, &result)
 
 	if err != nil {
 		return nil, err
 	}
 
 	if !result.Result {
-		return nil, errors.New("Unable to get unrepayments info.")
+		return nil, errors.New("unable to get unrepayments info")
 	}
 
 	return result.Unrepayments, nil
 }
 
-func (o *OKCoin) GetAccountRecords(symbol string, recType, currentPage, pageLength int) ([]OKCoinAccountRecords, error) {
+// GetAccountRecords returns account records
+func (o *OKCoin) GetAccountRecords(symbol string, recType, currentPage, pageLength int) ([]AccountRecords, error) {
 	type Response struct {
-		Records []OKCoinAccountRecords `json:"records"`
-		Symbol  string                 `json:"symbol"`
+		Records []AccountRecords `json:"records"`
+		Symbol  string           `json:"symbol"`
 	}
 	v := url.Values{}
 	v.Set("symbol", symbol)
@@ -752,7 +805,7 @@ func (o *OKCoin) GetAccountRecords(symbol string, recType, currentPage, pageLeng
 	v.Set("page_length", strconv.Itoa(pageLength))
 	result := Response{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_ACCOUNT_RECORDS, v, &result)
+	err := o.SendAuthenticatedHTTPRequest(okcoinAccountRecords, v, &result)
 
 	if err != nil {
 		return nil, err
@@ -761,25 +814,28 @@ func (o *OKCoin) GetAccountRecords(symbol string, recType, currentPage, pageLeng
 	return result.Records, nil
 }
 
+// GetFuturesUserInfo returns information on a users futures
 func (o *OKCoin) GetFuturesUserInfo() {
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_FUTURES_USERINFO, url.Values{}, nil)
+	err := o.SendAuthenticatedHTTPRequest(okcoinFuturesUserInfo, url.Values{}, nil)
 
 	if err != nil {
 		log.Println(err)
 	}
 }
 
+// GetFuturesPosition returns position on a futures contract
 func (o *OKCoin) GetFuturesPosition(symbol, contractType string) {
 	v := url.Values{}
 	v.Set("symbol", symbol)
 	v.Set("contract_type", contractType)
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_FUTURES_POSITION, v, nil)
+	err := o.SendAuthenticatedHTTPRequest(okcoinFuturesPosition, v, nil)
 
 	if err != nil {
 		log.Println(err)
 	}
 }
 
+// FuturesTrade initiates a new futures trade
 func (o *OKCoin) FuturesTrade(amount, price float64, matchPrice, leverage int64, symbol, contractType, orderType string) {
 	v := url.Values{}
 	v.Set("symbol", symbol)
@@ -790,13 +846,14 @@ func (o *OKCoin) FuturesTrade(amount, price float64, matchPrice, leverage int64,
 	v.Set("match_price", strconv.FormatInt(matchPrice, 10))
 	v.Set("lever_rate", strconv.FormatInt(leverage, 10))
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_FUTURES_TRADE, v, nil)
+	err := o.SendAuthenticatedHTTPRequest(okcoinFuturesTrade, v, nil)
 
 	if err != nil {
 		log.Println(err)
 	}
 }
 
+// FuturesBatchTrade initiates a batch of futures contract trades
 func (o *OKCoin) FuturesBatchTrade(orderData, symbol, contractType string, leverage int64, orderType string) {
 	v := url.Values{} //to-do batch trade support for orders_data)
 	v.Set("symbol", symbol)
@@ -804,26 +861,28 @@ func (o *OKCoin) FuturesBatchTrade(orderData, symbol, contractType string, lever
 	v.Set("orders_data", orderData)
 	v.Set("lever_rate", strconv.FormatInt(leverage, 10))
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_FUTURES_TRADE_BATCH, v, nil)
+	err := o.SendAuthenticatedHTTPRequest(okcoinFuturesTradeBatch, v, nil)
 
 	if err != nil {
 		log.Println(err)
 	}
 }
 
+// CancelFuturesOrder cancels a futures contract order
 func (o *OKCoin) CancelFuturesOrder(orderID int64, symbol, contractType string) {
 	v := url.Values{}
 	v.Set("symbol", symbol)
 	v.Set("contract_type", contractType)
 	v.Set("order_id", strconv.FormatInt(orderID, 10))
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_FUTURES_CANCEL, v, nil)
+	err := o.SendAuthenticatedHTTPRequest(okcoinFuturesCancel, v, nil)
 
 	if err != nil {
 		log.Println(err)
 	}
 }
 
+// GetFuturesOrderInfo returns information on a specfic futures contract order
 func (o *OKCoin) GetFuturesOrderInfo(orderID, status, currentPage, pageLength int64, symbol, contractType string) {
 	v := url.Values{}
 	v.Set("symbol", symbol)
@@ -833,50 +892,58 @@ func (o *OKCoin) GetFuturesOrderInfo(orderID, status, currentPage, pageLength in
 	v.Set("current_page", strconv.FormatInt(currentPage, 10))
 	v.Set("page_length", strconv.FormatInt(pageLength, 10))
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_FUTURES_ORDER_INFO, v, nil)
+	err := o.SendAuthenticatedHTTPRequest(okcoinFuturesOrderInfo, v, nil)
 
 	if err != nil {
 		log.Println(err)
 	}
 }
 
+// GetFutureOrdersInfo returns information on a range of futures orders
 func (o *OKCoin) GetFutureOrdersInfo(orderID int64, contractType, symbol string) {
 	v := url.Values{}
 	v.Set("order_id", strconv.FormatInt(orderID, 10))
 	v.Set("contract_type", contractType)
 	v.Set("symbol", symbol)
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_FUTURES_ORDERS_INFO, v, nil)
+	err := o.SendAuthenticatedHTTPRequest(okcoinFuturesOrdersInfo, v, nil)
 
 	if err != nil {
 		log.Println(err)
 	}
 }
 
+// GetFuturesUserInfo4Fix returns futures user info fix rate
 func (o *OKCoin) GetFuturesUserInfo4Fix() {
 	v := url.Values{}
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_FUTURES_USERINFO_4FIX, v, nil)
+	err := o.SendAuthenticatedHTTPRequest(okcoinFuturesUserInfo4Fix, v, nil)
 
 	if err != nil {
 		log.Println(err)
 	}
 }
 
+// GetFuturesUserPosition4Fix returns futures user info on a fixed position
 func (o *OKCoin) GetFuturesUserPosition4Fix(symbol, contractType string) {
 	v := url.Values{}
 	v.Set("symbol", symbol)
 	v.Set("contract_type", contractType)
 	v.Set("type", strconv.FormatInt(1, 10))
 
-	err := o.SendAuthenticatedHTTPRequest(OKCOIN_FUTURES_POSITION_4FIX, v, nil)
+	err := o.SendAuthenticatedHTTPRequest(okcoinFuturesUserInfo4Fix, v, nil)
 
 	if err != nil {
 		log.Println(err)
 	}
 }
 
+// SendAuthenticatedHTTPRequest sends an authenticated HTTP request
 func (o *OKCoin) SendAuthenticatedHTTPRequest(method string, v url.Values, result interface{}) (err error) {
+	if !o.AuthenticatedAPISupport {
+		return fmt.Errorf(exchange.WarningAuthenticatedRequestWithoutCredentialsSet, o.Name)
+	}
+
 	v.Set("api_key", o.APIKey)
 	hasher := common.GetMD5([]byte(v.Encode() + "&secret_key=" + o.APISecret))
 	v.Set("sign", strings.ToUpper(common.HexEncodeToString(hasher)))
@@ -910,6 +977,7 @@ func (o *OKCoin) SendAuthenticatedHTTPRequest(method string, v url.Values, resul
 	return nil
 }
 
+// SetErrorDefaults sets default error map
 func (o *OKCoin) SetErrorDefaults() {
 	o.RESTErrors = map[string]string{
 		"10000": "Required field, can not be null",

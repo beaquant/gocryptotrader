@@ -8,19 +8,20 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/currency"
+	"github.com/thrasher-/gocryptotrader/currency/pair"
 	"github.com/thrasher-/gocryptotrader/portfolio"
+	"github.com/thrasher-/gocryptotrader/smsglobal"
 )
 
 // Constants declared here are filename strings and test strings
 const (
-	ConfigFile                   = "config.dat"
-	OldConfigFile                = "config.json"
-	ConfigTestFile               = "../testdata/configtest.dat"
+	EncryptedConfigFile          = "config.dat"
+	ConfigFile                   = "config.json"
+	ConfigTestFile               = "../testdata/configtest.json"
 	configFileEncryptionPrompt   = 0
 	configFileEncryptionEnabled  = 1
 	configFileEncryptionDisabled = -1
@@ -45,16 +46,18 @@ var (
 	WarningWebserverListenAddressInvalid            = "WARNING -- Webserver support disabled due to invalid listen address."
 	WarningWebserverRootWebFolderNotFound           = "WARNING -- Webserver support disabled due to missing web folder."
 	WarningExchangeAuthAPIDefaultOrEmptyValues      = "WARNING -- Exchange %s: Authenticated API support disabled due to default/empty APIKey/Secret/ClientID values."
-	RenamingConfigFile                              = "Renaming config file %s to %s."
+	WarningCurrencyExchangeProvider                 = "WARNING -- Currency exchange provider invalid valid. Reset to Fixer."
 	Cfg                                             Config
 )
 
 // WebserverConfig struct holds the prestart variables for the webserver.
 type WebserverConfig struct {
-	Enabled       bool
-	AdminUsername string
-	AdminPassword string
-	ListenAddress string
+	Enabled                      bool
+	AdminUsername                string
+	AdminPassword                string
+	ListenAddress                string
+	WebsocketConnectionLimit     int
+	WebsocketAllowInsecureOrigin bool
 }
 
 // SMSGlobalConfig structure holds all the variables you need for instant
@@ -63,11 +66,7 @@ type SMSGlobalConfig struct {
 	Enabled  bool
 	Username string
 	Password string
-	Contacts []struct {
-		Name    string
-		Number  string
-		Enabled bool
-	}
+	Contacts []smsglobal.Contact
 }
 
 // Post holds the bot configuration data
@@ -75,36 +74,109 @@ type Post struct {
 	Data Config `json:"Data"`
 }
 
+// CurrencyPairFormatConfig stores the users preferred currency pair display
+type CurrencyPairFormatConfig struct {
+	Uppercase bool
+	Delimiter string `json:",omitempty"`
+	Separator string `json:",omitempty"`
+	Index     string `json:",omitempty"`
+}
+
 // Config is the overarching object that holds all the information for
 // prestart management of portfolio, SMSGlobal, webserver and enabled exchange
 type Config struct {
-	Name             string
-	EncryptConfig    int
-	Cryptocurrencies string
-	Portfolio        portfolio.Base   `json:"PortfolioAddresses"`
-	SMS              SMSGlobalConfig  `json:"SMSGlobal"`
-	Webserver        WebserverConfig  `json:"Webserver"`
-	Exchanges        []ExchangeConfig `json:"Exchanges"`
+	Name                     string
+	EncryptConfig            int
+	Cryptocurrencies         string
+	CurrencyExchangeProvider string
+	CurrencyPairFormat       *CurrencyPairFormatConfig `json:"CurrencyPairFormat"`
+	FiatDisplayCurrency      string
+	Portfolio                portfolio.Base   `json:"PortfolioAddresses"`
+	SMS                      SMSGlobalConfig  `json:"SMSGlobal"`
+	Webserver                WebserverConfig  `json:"Webserver"`
+	Exchanges                []ExchangeConfig `json:"Exchanges"`
 }
 
 // ExchangeConfig holds all the information needed for each enabled Exchange.
 type ExchangeConfig struct {
-	Name                    string
-	Enabled                 bool
-	Verbose                 bool
-	Websocket               bool
-	RESTPollingDelay        time.Duration
-	AuthenticatedAPISupport bool
-	APIKey                  string
-	APISecret               string
-	ClientID                string `json:",omitempty"`
-	AvailablePairs          string
-	EnabledPairs            string
-	BaseCurrencies          string
+	Name                      string
+	Enabled                   bool
+	Verbose                   bool
+	Websocket                 bool
+	UseSandbox                bool
+	RESTPollingDelay          time.Duration
+	AuthenticatedAPISupport   bool
+	APIKey                    string
+	APISecret                 string
+	ClientID                  string `json:",omitempty"`
+	AvailablePairs            string
+	EnabledPairs              string
+	BaseCurrencies            string
+	AssetTypes                string
+	ConfigCurrencyPairFormat  *CurrencyPairFormatConfig `json:"ConfigCurrencyPairFormat"`
+	RequestCurrencyPairFormat *CurrencyPairFormatConfig `json:"RequestCurrencyPairFormat"`
 }
 
-// GetConfigEnabledExchanges returns the number of exchanges that are enabled.
-func (c *Config) GetConfigEnabledExchanges() int {
+// SupportsPair returns true or not whether the exchange supports the supplied
+// pair
+func (c *Config) SupportsPair(exchName string, p pair.CurrencyPair) (bool, error) {
+	pairs, err := c.GetAvailablePairs(exchName)
+	if err != nil {
+		return false, err
+	}
+	return pair.Contains(pairs, p), nil
+}
+
+// GetAvailablePairs returns a list of currency pairs for a specifc exchange
+func (c *Config) GetAvailablePairs(exchName string) ([]pair.CurrencyPair, error) {
+	exchCfg, err := c.GetExchangeConfig(exchName)
+	if err != nil {
+		return nil, err
+	}
+
+	pairs := pair.FormatPairs(common.SplitStrings(exchCfg.AvailablePairs, ","),
+		exchCfg.ConfigCurrencyPairFormat.Delimiter,
+		exchCfg.ConfigCurrencyPairFormat.Index)
+	return pairs, nil
+}
+
+// GetEnabledPairs returns a list of  currency pairs for a specifc exchange
+func (c *Config) GetEnabledPairs(exchName string) ([]pair.CurrencyPair, error) {
+	exchCfg, err := c.GetExchangeConfig(exchName)
+	if err != nil {
+		return nil, err
+	}
+
+	pairs := pair.FormatPairs(common.SplitStrings(exchCfg.EnabledPairs, ","),
+		exchCfg.ConfigCurrencyPairFormat.Delimiter,
+		exchCfg.ConfigCurrencyPairFormat.Index)
+	return pairs, nil
+}
+
+// GetEnabledExchanges returns a list of enabled exchanges
+func (c *Config) GetEnabledExchanges() []string {
+	var enabledExchs []string
+	for i := range c.Exchanges {
+		if c.Exchanges[i].Enabled {
+			enabledExchs = append(enabledExchs, c.Exchanges[i].Name)
+		}
+	}
+	return enabledExchs
+}
+
+// GetDisabledExchanges returns a list of disabled exchanges
+func (c *Config) GetDisabledExchanges() []string {
+	var disabledExchs []string
+	for i := range c.Exchanges {
+		if !c.Exchanges[i].Enabled {
+			disabledExchs = append(disabledExchs, c.Exchanges[i].Name)
+		}
+	}
+	return disabledExchs
+}
+
+// CountEnabledExchanges returns the number of exchanges that are enabled.
+func (c *Config) CountEnabledExchanges() int {
 	counter := 0
 	for i := range c.Exchanges {
 		if c.Exchanges[i].Enabled {
@@ -112,6 +184,31 @@ func (c *Config) GetConfigEnabledExchanges() int {
 		}
 	}
 	return counter
+}
+
+// GetConfigCurrencyPairFormat returns the config currency pair format
+// for a specific exchange
+func (c *Config) GetConfigCurrencyPairFormat(exchName string) (*CurrencyPairFormatConfig, error) {
+	exchCfg, err := c.GetExchangeConfig(exchName)
+	if err != nil {
+		return nil, err
+	}
+	return exchCfg.ConfigCurrencyPairFormat, nil
+}
+
+// GetRequestCurrencyPairFormat returns the request currency pair format
+// for a specific exchange
+func (c *Config) GetRequestCurrencyPairFormat(exchName string) (*CurrencyPairFormatConfig, error) {
+	exchCfg, err := c.GetExchangeConfig(exchName)
+	if err != nil {
+		return nil, err
+	}
+	return exchCfg.RequestCurrencyPairFormat, nil
+}
+
+// GetCurrencyPairDisplayConfig retrieves the currency pair display preference
+func (c *Config) GetCurrencyPairDisplayConfig() *CurrencyPairFormatConfig {
+	return c.CurrencyPairFormat
 }
 
 // GetExchangeConfig returns your exchange configurations by its indivdual name
@@ -220,68 +317,61 @@ func (c *Config) CheckWebserverConfigValues() error {
 	if port < 1 || port > 65355 {
 		return errors.New(WarningWebserverListenAddressInvalid)
 	}
+
+	if c.Webserver.WebsocketConnectionLimit <= 0 {
+		c.Webserver.WebsocketConnectionLimit = 1
+	}
+
 	return nil
 }
 
 // RetrieveConfigCurrencyPairs splits, assigns and verifies enabled currency
 // pairs either cryptoCurrencies or fiatCurrencies
-func (c *Config) RetrieveConfigCurrencyPairs() error {
+func (c *Config) RetrieveConfigCurrencyPairs(enabledOnly bool) error {
 	cryptoCurrencies := common.SplitStrings(c.Cryptocurrencies, ",")
 	fiatCurrencies := common.SplitStrings(currency.DefaultCurrencies, ",")
 
-	for _, s := range cryptoCurrencies {
-		_, err := strconv.Atoi(s)
-		if err != nil && common.StringContains(c.Cryptocurrencies, s) {
+	for x := range c.Exchanges {
+		if !c.Exchanges[x].Enabled && enabledOnly {
 			continue
-		} else {
-			return errors.New("RetrieveConfigCurrencyPairs: Incorrect Crypto-Currency")
 		}
-	}
 
-	for _, exchange := range c.Exchanges {
-		if exchange.Enabled {
-			baseCurrencies := common.SplitStrings(exchange.BaseCurrencies, ",")
-			enabledCurrencies := common.SplitStrings(exchange.EnabledPairs, ",")
-
-			for _, currencyPair := range enabledCurrencies {
-				ok, separator := currency.ContainsSeparator(currencyPair)
-				if ok {
-					pair := common.SplitStrings(currencyPair, separator)
-					for _, x := range pair {
-						ok, _ = currency.ContainsBaseCurrencyIndex(baseCurrencies, x)
-						if !ok {
-							cryptoCurrencies = currency.CheckAndAddCurrency(cryptoCurrencies, x)
-						}
-					}
-				} else {
-					ok, idx := currency.ContainsBaseCurrencyIndex(baseCurrencies, currencyPair)
-					if ok {
-						curr := strings.Replace(currencyPair, idx, "", -1)
-
-						if currency.ContainsBaseCurrency(baseCurrencies, curr) {
-							fiatCurrencies = currency.CheckAndAddCurrency(fiatCurrencies, curr)
-						} else {
-							cryptoCurrencies = currency.CheckAndAddCurrency(cryptoCurrencies, curr)
-						}
-
-						if currency.ContainsBaseCurrency(baseCurrencies, idx) {
-							fiatCurrencies = currency.CheckAndAddCurrency(fiatCurrencies, idx)
-						} else {
-							cryptoCurrencies = currency.CheckAndAddCurrency(cryptoCurrencies, idx)
-						}
-					}
-				}
+		baseCurrencies := common.SplitStrings(c.Exchanges[x].BaseCurrencies, ",")
+		for y := range baseCurrencies {
+			if !common.StringDataCompare(fiatCurrencies, common.StringToUpper(baseCurrencies[y])) {
+				fiatCurrencies = append(fiatCurrencies, common.StringToUpper(baseCurrencies[y]))
 			}
 		}
 	}
 
-	currency.BaseCurrencies = common.JoinStrings(fiatCurrencies, ",")
-	if common.StringContains(currency.BaseCurrencies, "RUR") {
-		currency.BaseCurrencies = strings.Replace(currency.BaseCurrencies, "RUR", "RUB", -1)
-	}
-	c.Cryptocurrencies = common.JoinStrings(cryptoCurrencies, ",")
-	currency.CryptoCurrencies = c.Cryptocurrencies
+	for x := range c.Exchanges {
+		var pairs []pair.CurrencyPair
+		var err error
+		if !c.Exchanges[x].Enabled && enabledOnly {
+			pairs, err = c.GetEnabledPairs(c.Exchanges[x].Name)
+		} else {
+			pairs, err = c.GetAvailablePairs(c.Exchanges[x].Name)
+		}
 
+		if err != nil {
+			return err
+		}
+
+		for y := range pairs {
+			if !common.StringDataCompare(fiatCurrencies, pairs[y].FirstCurrency.Upper().String()) &&
+				!common.StringDataCompare(cryptoCurrencies, pairs[y].FirstCurrency.Upper().String()) {
+				cryptoCurrencies = append(cryptoCurrencies, pairs[y].FirstCurrency.Upper().String())
+			}
+
+			if !common.StringDataCompare(fiatCurrencies, pairs[y].SecondCurrency.Upper().String()) &&
+				!common.StringDataCompare(cryptoCurrencies, pairs[y].SecondCurrency.Upper().String()) {
+				cryptoCurrencies = append(cryptoCurrencies, pairs[y].SecondCurrency.Upper().String())
+			}
+		}
+	}
+
+	currency.Update(fiatCurrencies, false)
+	currency.Update(cryptoCurrencies, true)
 	return nil
 }
 
@@ -291,35 +381,49 @@ func GetFilePath(file string) string {
 	if file != "" {
 		return file
 	}
-	if flag.Lookup("test.v") == nil {
-		return ConfigFile
-	}
-	return ConfigTestFile
-}
 
-// CheckConfig checks to see if there is an old configuration filename and path
-// if found it will change it to correct filename.
-func CheckConfig() error {
-	_, err := common.ReadFile(OldConfigFile)
-	if err == nil {
-		err = os.Rename(OldConfigFile, ConfigFile)
-		if err != nil {
-			return err
-		}
-		log.Printf(RenamingConfigFile+"\n", OldConfigFile, ConfigFile)
+	if flag.Lookup("test.v") != nil {
+		return ConfigTestFile
 	}
-	return nil
+
+	exePath, err := common.GetExecutablePath()
+	if err != nil {
+		log.Fatalf("Unable to get executable path: %s", err)
+	}
+
+	tempPath := exePath + common.GetOSPathSlash()
+	encPath := tempPath + EncryptedConfigFile
+	cfgPath := tempPath + ConfigFile
+
+	data, err := common.ReadFile(encPath)
+	if err == nil {
+		if ConfirmECS(data) {
+			return encPath
+		}
+		err = os.Rename(encPath, cfgPath)
+		if err != nil {
+			log.Fatalf("Unable to rename config file: %s", err)
+		}
+		log.Printf("Renaming non-encrypted config file from %s to %s",
+			encPath, cfgPath)
+		return cfgPath
+	}
+	if !ConfirmECS(data) {
+		return cfgPath
+	}
+	err = os.Rename(cfgPath, encPath)
+	if err != nil {
+		log.Fatalf("Unable to rename config file: %s", err)
+	}
+	log.Printf("Renamed encrypted config file from %s to %s", cfgPath,
+		encPath)
+	return encPath
 }
 
 // ReadConfig verifies and checks for encryption and verifies the unencrypted
 // file contains JSON.
 func (c *Config) ReadConfig(configPath string) error {
 	defaultPath := GetFilePath(configPath)
-	err := CheckConfig()
-	if err != nil {
-		return err
-	}
-
 	file, err := common.ReadFile(defaultPath)
 	if err != nil {
 		return err
@@ -394,6 +498,79 @@ func (c *Config) LoadConfig(configPath string) error {
 	err = c.CheckExchangeConfigValues()
 	if err != nil {
 		return fmt.Errorf(ErrCheckingConfigValues, err)
+	}
+
+	if c.SMS.Enabled {
+		err = c.CheckSMSGlobalConfigValues()
+		if err != nil {
+			log.Print(fmt.Errorf(ErrCheckingConfigValues, err))
+			c.SMS.Enabled = false
+		}
+	}
+
+	if c.Webserver.Enabled {
+		err = c.CheckWebserverConfigValues()
+		if err != nil {
+			log.Print(fmt.Errorf(ErrCheckingConfigValues, err))
+			c.Webserver.Enabled = false
+		}
+	}
+
+	if c.CurrencyExchangeProvider == "" {
+		c.CurrencyExchangeProvider = "fixer"
+	} else {
+		if c.CurrencyExchangeProvider != "yahoo" && c.CurrencyExchangeProvider != "fixer" {
+			log.Println(WarningCurrencyExchangeProvider)
+			c.CurrencyExchangeProvider = "fixer"
+		}
+	}
+
+	if c.CurrencyPairFormat == nil {
+		c.CurrencyPairFormat = &CurrencyPairFormatConfig{
+			Delimiter: "-",
+			Uppercase: true,
+		}
+	}
+
+	if c.FiatDisplayCurrency == "" {
+		c.FiatDisplayCurrency = "USD"
+	}
+
+	return nil
+}
+
+// UpdateConfig updates the config with a supplied config file
+func (c *Config) UpdateConfig(configPath string, newCfg Config) error {
+	if c.Name != newCfg.Name && newCfg.Name != "" {
+		c.Name = newCfg.Name
+	}
+
+	err := newCfg.CheckExchangeConfigValues()
+	if err != nil {
+		return err
+	}
+	c.Exchanges = newCfg.Exchanges
+
+	if c.CurrencyPairFormat != newCfg.CurrencyPairFormat {
+		c.CurrencyPairFormat = newCfg.CurrencyPairFormat
+	}
+
+	c.Portfolio = newCfg.Portfolio
+
+	err = newCfg.CheckSMSGlobalConfigValues()
+	if err != nil {
+		return err
+	}
+	c.SMS = newCfg.SMS
+
+	err = c.SaveConfig(configPath)
+	if err != nil {
+		return err
+	}
+
+	err = c.LoadConfig(configPath)
+	if err != nil {
+		return err
 	}
 
 	return nil
