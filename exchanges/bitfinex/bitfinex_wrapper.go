@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/url"
+	"sync"
 
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/currency/pair"
@@ -13,8 +14,12 @@ import (
 )
 
 // Start starts the Bitfinex go routine
-func (b *Bitfinex) Start() {
-	go b.Run()
+func (b *Bitfinex) Start(wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		b.Run()
+		wg.Done()
+	}()
 }
 
 // Run implements the Bitfinex wrapper
@@ -33,9 +38,9 @@ func (b *Bitfinex) Run() {
 	if err != nil {
 		log.Printf("%s Failed to get available symbols.\n", b.GetName())
 	} else {
-		err = b.UpdateAvailableCurrencies(exchangeProducts, false)
+		err = b.UpdateCurrencies(exchangeProducts, false, false)
 		if err != nil {
-			log.Printf("%s Failed to get config.\n", b.GetName())
+			log.Printf("%s Failed to update available symbols.\n", b.GetName())
 		}
 	}
 }
@@ -158,9 +163,65 @@ func (b *Bitfinex) GetExchangeAccountInfo() (exchange.AccountInfo, error) {
 	return response, nil
 }
 
+// GetExchangeFundTransferHistory returns funding history, deposits and
+// withdrawals
+func (b *Bitfinex) GetExchangeFundTransferHistory() ([]exchange.FundHistory, error) {
+	var fundHistory []exchange.FundHistory
+	return fundHistory, errors.New("not supported on exchange")
+}
+
 // GetExchangeHistory returns historic trade data since exchange opening.
 func (b *Bitfinex) GetExchangeHistory(p pair.CurrencyPair, assetType string) ([]exchange.TradeHistory, error) {
 	var resp []exchange.TradeHistory
 
 	return resp, errors.New("trade history not yet implemented")
+}
+
+// SubmitExchangeOrder submits a new order
+func (b *Bitfinex) SubmitExchangeOrder(p pair.CurrencyPair, side exchange.OrderSide, orderType exchange.OrderType, amount, price float64, clientID string) (int64, error) {
+	return 0, errors.New("not yet implemented")
+}
+
+// ModifyExchangeOrder will allow of changing orderbook placement and limit to
+// market conversion
+func (b *Bitfinex) ModifyExchangeOrder(orderID int64, action exchange.ModifyOrder) (int64, error) {
+	return 0, errors.New("not yet implemented")
+}
+
+// CancelExchangeOrder cancels an order by its corresponding ID number
+func (b *Bitfinex) CancelExchangeOrder(orderID int64) error {
+	return errors.New("not yet implemented")
+}
+
+// CancelAllExchangeOrders cancels all orders associated with a currency pair
+func (b *Bitfinex) CancelAllExchangeOrders() error {
+	return errors.New("not yet implemented")
+}
+
+// GetExchangeOrderInfo returns information on a current open order
+func (b *Bitfinex) GetExchangeOrderInfo(orderID int64) (exchange.OrderDetail, error) {
+	var orderDetail exchange.OrderDetail
+	return orderDetail, errors.New("not yet implemented")
+}
+
+// GetExchangeDepositAddress returns a deposit address for a specified currency
+func (b *Bitfinex) GetExchangeDepositAddress(cryptocurrency pair.CurrencyItem) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawCryptoExchangeFunds returns a withdrawal ID when a withdrawal is submitted
+func (b *Bitfinex) WithdrawCryptoExchangeFunds(address string, cryptocurrency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawFiatExchangeFunds returns a withdrawal ID when a
+// withdrawal is submitted
+func (b *Bitfinex) WithdrawFiatExchangeFunds(currency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawFiatExchangeFundsToInternationalBank returns a withdrawal ID when a
+// withdrawal is submitted
+func (b *Bitfinex) WithdrawFiatExchangeFundsToInternationalBank(currency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
 }

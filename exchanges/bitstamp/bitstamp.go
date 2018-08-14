@@ -13,6 +13,7 @@ import (
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/config"
 	"github.com/thrasher-/gocryptotrader/exchanges"
+	"github.com/thrasher-/gocryptotrader/exchanges/request"
 	"github.com/thrasher-/gocryptotrader/exchanges/ticker"
 )
 
@@ -46,6 +47,10 @@ const (
 	bitstampAPIXrpWithdrawal      = "xrp_withdrawal"
 	bitstampAPIXrpDeposit         = "xrp_address"
 	bitstampAPIReturnType         = "string"
+	bitstampAPITradingPairsInfo   = "trading-pairs-info"
+
+	bitstampAuthRate   = 600
+	bitstampUnauthRate = 600
 )
 
 // Bitstamp is the overarching type across the bitstamp package
@@ -66,6 +71,9 @@ func (b *Bitstamp) SetDefaults() {
 	b.ConfigCurrencyPairFormat.Delimiter = ""
 	b.ConfigCurrencyPairFormat.Uppercase = true
 	b.AssetTypes = []string{ticker.Spot}
+	b.SupportsAutoPairUpdating = true
+	b.SupportsRESTTickerBatching = false
+	b.Requester = request.New(b.Name, request.NewRateLimit(time.Minute*10, bitstampAuthRate), request.NewRateLimit(time.Minute*10, bitstampUnauthRate), common.NewHTTPClientWithTimeout(exchange.DefaultHTTPTimeout))
 }
 
 // Setup sets configuration values to bitstamp
@@ -76,6 +84,8 @@ func (b *Bitstamp) Setup(exch config.ExchangeConfig) {
 		b.Enabled = true
 		b.AuthenticatedAPISupport = exch.AuthenticatedAPISupport
 		b.SetAPIKeys(exch.APIKey, exch.APISecret, exch.ClientID, false)
+		b.SetHTTPClientTimeout(exch.HTTPTimeout)
+		b.SetHTTPClientUserAgent(exch.HTTPUserAgent)
 		b.RESTPollingDelay = exch.RESTPollingDelay
 		b.Verbose = exch.Verbose
 		b.Websocket = exch.Websocket
@@ -87,6 +97,10 @@ func (b *Bitstamp) Setup(exch config.ExchangeConfig) {
 			log.Fatal(err)
 		}
 		err = b.SetAssetTypes()
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = b.SetAutoPairDefaults()
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -127,7 +141,7 @@ func (b *Bitstamp) GetTicker(currency string, hourly bool) (Ticker, error) {
 		tickerEndpoint,
 		common.StringToLower(currency),
 	)
-	return response, common.SendHTTPGetRequest(path, true, b.Verbose, &response)
+	return response, b.SendHTTPRequest(path, &response)
 }
 
 // GetOrderbook Returns a JSON dictionary with "bids" and "asks". Each is a list
@@ -149,7 +163,7 @@ func (b *Bitstamp) GetOrderbook(currency string) (Orderbook, error) {
 		common.StringToLower(currency),
 	)
 
-	err := common.SendHTTPGetRequest(path, true, b.Verbose, &resp)
+	err := b.SendHTTPRequest(path, &resp)
 	if err != nil {
 		return Orderbook{}, err
 	}
@@ -188,6 +202,14 @@ func (b *Bitstamp) GetOrderbook(currency string) (Orderbook, error) {
 	return orderbook, nil
 }
 
+// GetTradingPairs returns a list of trading pairs which Bitstamp
+// currently supports
+func (b *Bitstamp) GetTradingPairs() ([]TradingPair, error) {
+	var result []TradingPair
+	path := fmt.Sprintf("%s/v%s/%s", bitstampAPIURL, bitstampAPIVersion, bitstampAPITradingPairsInfo)
+	return result, b.SendHTTPRequest(path, &result)
+}
+
 // GetTransactions returns transaction information
 // value paramater ["time"] = "minute", "hour", "day" will collate your
 // response into time intervals. Implementation of value in test code.
@@ -204,7 +226,7 @@ func (b *Bitstamp) GetTransactions(currencyPair string, values url.Values) ([]Tr
 		values,
 	)
 
-	return transactions, common.SendHTTPGetRequest(path, true, b.Verbose, &transactions)
+	return transactions, b.SendHTTPRequest(path, &transactions)
 }
 
 // GetEURUSDConversionRate returns the conversion rate between Euro and USD
@@ -212,15 +234,15 @@ func (b *Bitstamp) GetEURUSDConversionRate() (EURUSDConversionRate, error) {
 	rate := EURUSDConversionRate{}
 	path := fmt.Sprintf("%s/%s", bitstampAPIURL, bitstampAPIEURUSD)
 
-	return rate, common.SendHTTPGetRequest(path, true, b.Verbose, &rate)
+	return rate, b.SendHTTPRequest(path, &rate)
 }
 
 // GetBalance returns full balance of currency held on the exchange
 func (b *Bitstamp) GetBalance() (Balances, error) {
 	balance := Balances{}
+	path := fmt.Sprintf("%s/%s", bitstampAPIURL, bitstampAPIBalance)
 
-	return balance,
-		b.SendAuthenticatedHTTPRequest(bitstampAPIBalance, true, url.Values{}, &balance)
+	return balance, b.SendHTTPRequest(path, &balance)
 }
 
 // GetUserTransactions returns an array of transactions
@@ -470,6 +492,11 @@ func (b *Bitstamp) TransferAccountBalance(amount float64, currency, subAccount s
 	return true, nil
 }
 
+// SendHTTPRequest sends an unauthenticated HTTP request
+func (b *Bitstamp) SendHTTPRequest(path string, result interface{}) error {
+	return b.SendPayload("GET", path, nil, nil, result, false, b.Verbose)
+}
+
 // SendAuthenticatedHTTPRequest sends an authenticated request
 func (b *Bitstamp) SendAuthenticatedHTTPRequest(path string, v2 bool, values url.Values, result interface{}) (err error) {
 	if !b.AuthenticatedAPISupport {
@@ -504,26 +531,5 @@ func (b *Bitstamp) SendAuthenticatedHTTPRequest(path string, v2 bool, values url
 	headers := make(map[string]string)
 	headers["Content-Type"] = "application/x-www-form-urlencoded"
 
-	resp, err := common.SendHTTPRequest("POST", path, headers, strings.NewReader(values.Encode()))
-	if err != nil {
-		return err
-	}
-
-	if b.Verbose {
-		log.Printf("Received raw: %s\n", resp)
-	}
-
-	/* inconsistent errors, needs to be improved when in production*/
-	if common.StringContains(resp, "500 error") {
-		return errors.New("internal server: code 500")
-	}
-
-	capture := CaptureError{}
-	if err = common.JSONDecode([]byte(resp), &capture); err == nil {
-		if capture.Code != nil || capture.Error != nil || capture.Reason != nil || capture.Status != nil {
-			errstring := fmt.Sprint("Status: ", capture.Status, ", Issue: ", capture.Error, ", Reason: ", capture.Reason, ", Code: ", capture.Code)
-			return errors.New(errstring)
-		}
-	}
-	return common.JSONDecode([]byte(resp), &result)
+	return b.SendPayload("POST", path, headers, strings.NewReader(values.Encode()), result, true, b.Verbose)
 }

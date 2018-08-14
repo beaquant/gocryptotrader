@@ -1,12 +1,12 @@
 import {Component, ViewEncapsulation, ChangeDetectionStrategy, NgModule} from '@angular/core';
 import { StyleManagerService } from './../../services/style-manager/style-manager.service';
 
-import { ThemeStorageService,DocsSiteTheme } from './../../services/theme-storage/theme-storage.service';
+import { ThemeStorageService, DocsSiteTheme } from './../../services/theme-storage/theme-storage.service';
 import {CommonModule} from '@angular/common';
 
 
 @Component({
-  selector: 'theme-picker',
+  selector: 'app-theme-picker',
   templateUrl: 'theme-picker.html',
   styleUrls: ['theme-picker.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -54,7 +54,7 @@ export class ThemePickerComponent {
       href: 'green-gold.css',
       isDark: false,
     },
-    
+
   ];
 
   constructor(
@@ -73,7 +73,7 @@ export class ThemePickerComponent {
     if (theme.isDefault) {
       this.styleManager.removeStyle('theme');
     } else {
-      this.styleManager.setStyle('theme', `assets/${theme.href}`);
+      this.styleManager.setStyle('theme', `assets/themes/${theme.href}`);
     }
 
     if (this.currentTheme) {

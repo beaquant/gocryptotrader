@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"strconv"
+	"sync"
 
 	"github.com/thrasher-/gocryptotrader/currency/pair"
 	"github.com/thrasher-/gocryptotrader/exchanges"
@@ -12,8 +13,12 @@ import (
 )
 
 // Start starts the ItBit go routine
-func (i *ItBit) Start() {
-	go i.Run()
+func (i *ItBit) Start(wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		i.Run()
+		wg.Done()
+	}()
 }
 
 // Run implements the ItBit wrapper
@@ -109,9 +114,66 @@ func (i *ItBit) GetExchangeAccountInfo() (exchange.AccountInfo, error) {
 	return response, nil
 }
 
+// GetExchangeFundTransferHistory returns funding history, deposits and
+// withdrawals
+func (i *ItBit) GetExchangeFundTransferHistory() ([]exchange.FundHistory, error) {
+	var fundHistory []exchange.FundHistory
+	return fundHistory, errors.New("not supported on exchange")
+}
+
 // GetExchangeHistory returns historic trade data since exchange opening.
 func (i *ItBit) GetExchangeHistory(p pair.CurrencyPair, assetType string) ([]exchange.TradeHistory, error) {
 	var resp []exchange.TradeHistory
 
 	return resp, errors.New("trade history not yet implemented")
+}
+
+// SubmitExchangeOrder submits a new order
+func (i *ItBit) SubmitExchangeOrder(p pair.CurrencyPair, side exchange.OrderSide, orderType exchange.OrderType, amount, price float64, clientID string) (int64, error) {
+	return 0, errors.New("not yet implemented")
+}
+
+// ModifyExchangeOrder will allow of changing orderbook placement and limit to
+// market conversion
+func (i *ItBit) ModifyExchangeOrder(orderID int64, action exchange.ModifyOrder) (int64, error) {
+	return 0, errors.New("not yet implemented")
+}
+
+// CancelExchangeOrder cancels an order by its corresponding ID number
+func (i *ItBit) CancelExchangeOrder(orderID int64) error {
+	return errors.New("not yet implemented")
+}
+
+// CancelAllExchangeOrders cancels all orders associated with a currency pair
+func (i *ItBit) CancelAllExchangeOrders() error {
+	return errors.New("not yet implemented")
+}
+
+// GetExchangeOrderInfo returns information on a current open order
+func (i *ItBit) GetExchangeOrderInfo(orderID int64) (exchange.OrderDetail, error) {
+	var orderDetail exchange.OrderDetail
+	return orderDetail, errors.New("not yet implemented")
+}
+
+// GetExchangeDepositAddress returns a deposit address for a specified currency
+func (i *ItBit) GetExchangeDepositAddress(cryptocurrency pair.CurrencyItem) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawCryptoExchangeFunds returns a withdrawal ID when a withdrawal is
+// submitted
+func (i *ItBit) WithdrawCryptoExchangeFunds(address string, cryptocurrency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawFiatExchangeFunds returns a withdrawal ID when a
+// withdrawal is submitted
+func (i *ItBit) WithdrawFiatExchangeFunds(currency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawFiatExchangeFundsToInternationalBank returns a withdrawal ID when a
+// withdrawal is submitted
+func (i *ItBit) WithdrawFiatExchangeFundsToInternationalBank(currency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
 }

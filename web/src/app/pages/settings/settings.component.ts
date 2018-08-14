@@ -1,145 +1,106 @@
-import { Component, OnInit } from '@angular/core';
-import { WebsocketHandlerService } from './../../services/websocket-handler/websocket-handler.service';
+import { Component, OnInit, OnDestroy, Inject } from '@angular/core';
+import { WebsocketResponseHandlerService } from './../../services/websocket-response-handler/websocket-response-handler.service';
+import { WebSocketMessageType, WebSocketMessage } from './../../shared/classes/websocket';
+import { Config, CurrencyPairRedux, Wallet } from './../../shared/classes/config';
+import { MatSnackBar, MatDialog, MatDialogRef, MAT_DIALOG_DATA} from '@angular/material';
+import { WalletComponent } from '../wallet/wallet.component';
 
 @Component({
   selector: 'app-settings',
   templateUrl: './settings.component.html',
-  styleUrls: ['./settings.component.scss']
+  styleUrls: ['./settings.component.scss'],
 })
 
-
 export class SettingsComponent implements OnInit {
-  public settings: Config = null;
-  private ws: WebsocketHandlerService;
-  private failCount = 0;
-  private timer: any;
+  public settings: Config = new Config();
+  private ws: WebsocketResponseHandlerService;
+  public ready = false;
+  private snackBar: MatSnackBar;
+  private dialogue;
 
-  private getSettingsMessage = {
-    Event: 'GetConfig',
-    data: null,
-  };
-
-  constructor(private websocketHandler: WebsocketHandlerService) {
+    constructor(private websocketHandler: WebsocketResponseHandlerService, snackBar: MatSnackBar, public dialog: MatDialog) {
     this.ws = websocketHandler;
-    this.ws.messages.subscribe(msg => {
-      
-      if (msg.Event === 'GetConfig') {
-        this.settings = <Config>msg.data;
-      } else if (msg.Event === 'SaveConfig') {
-        // something!
-      }
-    });
+    this.snackBar = snackBar;
   }
   ngOnInit() {
+    this.ws.shared.subscribe(msg => {
+      if (msg.event === WebSocketMessageType.GetConfig) {
+        this.settings.setConfig(msg.data);
+        this.ready = true;
+      } else if (msg.event === WebSocketMessageType.SaveConfig) {
+        if (msg.error !== null || msg.error.length > 0) {
+          this.snackBar.open(msg.error, '', {
+            duration: 4000,
+          });
+        }
+        if (msg.error === null || msg.error === '') {
+          this.settings.clearCache();
+          this.getSettings();
+          this.snackBar.open('Success', msg.data, {
+            duration: 1000,
+          });
+        }
+      }
+    });
     this.getSettings();
   }
 
-  private getSettings(): void {
-    this.ws.messages.next(this.getSettingsMessage);
-    this.resendMessageIfPageRefreshed();
+  public addWallet(): void {
+    this.settings.PortfolioAddresses.Addresses.push(<Wallet>{});
   }
 
+  public removeWallet(wallet: any) {
+    this.settings.PortfolioAddresses.Addresses.splice(this.settings.PortfolioAddresses.Addresses.indexOf(wallet), 1);
+  }
+
+
+  public openModal(pairs: any): void {
+    const dialogRef = this.dialog.open(EnabledCurrenciesDialogueComponent, {
+      width: '20%',
+      height: '40%',
+      data: { pairs: pairs }
+    });
+  }
+
+  private getSettings(): void {
+    if (this.settings.isConfigCacheValid()) {
+      this.settings.setConfig(JSON.parse(window.localStorage['config']));
+      this.ready = true;
+    } else {
+      this.settings.clearCache();
+      this.ws.messages.next(WebSocketMessage.GetSettingsMessage());
+    }
+  }
 
   private saveSettings(): void {
-    //Send the message
-    var settingsSave = {
+    this.settings.fromReduxToArray();
+    const settingsSave = {
       Event: 'SaveConfig',
       data: this.settings,
-    }
+    };
     this.ws.messages.next(settingsSave);
   }
+}
 
-//there has to be a better way
-  private resendMessageIfPageRefreshed(): void {
-    if (this.failCount <= 10) {
-      setTimeout(() => {
-      if (this.settings === null) {
-          //console.log(this.failCount);
-          //console.log('Settings hasnt been set. Trying again');
-          this.failCount++;
-          this.getSettings();
-        }
-      }, 1000);
-    } else {
-      // something has gone wrong
-      console.log('Could not load settings. Check if GocryptoTrader server is running, otherwise open a ticket');
-    }
+@Component({
+  selector: 'app-dialog-overview-example-dialog',
+  template: '<h4>Enabled Currencies</h4><div *ngFor="let currency of data.pairs"><mat-checkbox name="{{currency.Name}}2" [(ngModel)]="currency.Enabled">{{currency.Name}}</mat-checkbox></div><button mat-raised-button color="primary" (click)="close()">DONE</button>',
+})
+export class EnabledCurrenciesDialogueComponent {
+
+  constructor(
+    public dialogRef: MatDialogRef<EnabledCurrenciesDialogueComponent>,
+    @Inject(MAT_DIALOG_DATA) public data: any) { }
+
+  onNoClick(): void {
+    this.dialogRef.close();
   }
-}
 
+  public close(): void {
+    this.dialogRef.close();
 
-export interface CurrencyPairFormat {
-  Uppercase: boolean;
-  Delimiter: string;
-}
+  }
 
-export interface PortfolioAddresses {
-  Addresses?: any;
-}
-
-export interface Contact {
-  Name: string;
-  Number: string;
-  Enabled: boolean;
-}
-
-export interface SMSGlobal {
-  Enabled: boolean;
-  Username: string;
-  Password: string;
-  Contacts: Contact[];
-}
-
-export interface Webserver {
-  Enabled: boolean;
-  AdminUsername: string;
-  AdminPassword: string;
-  ListenAddress: string;
-  WebsocketConnectionLimit: number;
-  WebsocketAllowInsecureOrigin: boolean;
-}
-
-export interface ConfigCurrencyPairFormat {
-  Uppercase: boolean;
-  Index: string;
-  Delimiter: string;
-}
-
-export interface RequestCurrencyPairFormat {
-  Uppercase: boolean;
-  Index: string;
-  Delimiter: string;
-  Separator: string;
-}
-
-export interface Exchange {
-  Name: string;
-  Enabled: boolean;
-  Verbose: boolean;
-  Websocket: boolean;
-  RESTPollingDelay: number;
-  AuthenticatedAPISupport: boolean;
-  APIKey: string;
-  APISecret: string;
-  AvailablePairs: string;
-  EnabledPairs: string;
-  BaseCurrencies: string;
-  AssetTypes: string;
-  ConfigCurrencyPairFormat: ConfigCurrencyPairFormat;
-  RequestCurrencyPairFormat: RequestCurrencyPairFormat;
-  ClientID: string;
-}
-
-export interface Config {
-  Name: string;
-  EncryptConfig?: number;
-  Cryptocurrencies: string;
-  CurrencyExchangeProvider: string;
-  CurrencyPairFormat: CurrencyPairFormat;
-  PortfolioAddresses: PortfolioAddresses;
-  SMSGlobal: SMSGlobal;
-  Webserver: Webserver;
-  Exchanges: Exchange[];
 }
 
 

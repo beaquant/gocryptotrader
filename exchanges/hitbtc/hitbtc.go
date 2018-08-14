@@ -7,10 +7,12 @@ import (
 	"log"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/config"
 	"github.com/thrasher-/gocryptotrader/exchanges"
+	"github.com/thrasher-/gocryptotrader/exchanges/request"
 	"github.com/thrasher-/gocryptotrader/exchanges/ticker"
 )
 
@@ -39,6 +41,9 @@ const (
 	orderMove           = "moveOrder"
 	tradableBalances    = "returnTradableBalances"
 	transferBalance     = "transferBalance"
+
+	hitbtcAuthRate   = 0
+	hitbtcUnauthRate = 0
 )
 
 // HitBTC is the overarching type across the hitbtc package
@@ -59,6 +64,9 @@ func (p *HitBTC) SetDefaults() {
 	p.ConfigCurrencyPairFormat.Delimiter = "-"
 	p.ConfigCurrencyPairFormat.Uppercase = true
 	p.AssetTypes = []string{ticker.Spot}
+	p.SupportsAutoPairUpdating = true
+	p.SupportsRESTTickerBatching = true
+	p.Requester = request.New(p.Name, request.NewRateLimit(time.Second, hitbtcAuthRate), request.NewRateLimit(time.Second, hitbtcUnauthRate), common.NewHTTPClientWithTimeout(exchange.DefaultHTTPTimeout))
 }
 
 // Setup sets user exchange configuration settings
@@ -69,6 +77,8 @@ func (p *HitBTC) Setup(exch config.ExchangeConfig) {
 		p.Enabled = true
 		p.AuthenticatedAPISupport = exch.AuthenticatedAPISupport
 		p.SetAPIKeys(exch.APIKey, exch.APISecret, "", false)
+		p.SetHTTPClientTimeout(exch.HTTPTimeout)
+		p.SetHTTPClientUserAgent(exch.HTTPUserAgent)
 		p.RESTPollingDelay = exch.RESTPollingDelay // Max 60000ms
 		p.Verbose = exch.Verbose
 		p.Websocket = exch.Websocket
@@ -80,6 +90,10 @@ func (p *HitBTC) Setup(exch config.ExchangeConfig) {
 			log.Fatal(err)
 		}
 		err = p.SetAssetTypes()
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = p.SetAutoPairDefaults()
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -102,12 +116,16 @@ func (p *HitBTC) GetCurrencies(currency string) (map[string]Currencies, error) {
 	}
 	resp := Response{}
 	path := fmt.Sprintf("%s/%s/%s", apiURL, apiV2Currency, currency)
-	err := common.SendHTTPGetRequest(path, true, p.Verbose, &resp.Data)
+
 	ret := make(map[string]Currencies)
+	err := p.SendHTTPRequest(path, &resp.Data)
+	if err != nil {
+		return ret, err
+	}
+
 	for _, id := range resp.Data {
 		ret[id.ID] = id
 	}
-
 	return ret, err
 }
 
@@ -119,21 +137,26 @@ func (p *HitBTC) GetCurrencies(currency string) (map[string]Currencies, error) {
 func (p *HitBTC) GetSymbols(symbol string) ([]string, error) {
 	resp := []Symbol{}
 	path := fmt.Sprintf("%s/%s/%s", apiURL, apiV2Symbol, symbol)
-	err := common.SendHTTPGetRequest(path, true, p.Verbose, &resp)
+
 	ret := make([]string, 0, len(resp))
+	err := p.SendHTTPRequest(path, &resp)
+	if err != nil {
+		return ret, err
+	}
+
 	for _, x := range resp {
 		ret = append(ret, x.ID)
 	}
-
 	return ret, err
 }
 
 // GetSymbolsDetailed is the same as above but returns an array of symbols with
-// all ther details.
+// all their details.
 func (p *HitBTC) GetSymbolsDetailed() ([]Symbol, error) {
 	resp := []Symbol{}
 	path := fmt.Sprintf("%s/%s", apiURL, apiV2Symbol)
-	return resp, common.SendHTTPGetRequest(path, true, p.Verbose, &resp)
+
+	return resp, p.SendHTTPRequest(path, &resp)
 }
 
 // GetTicker returns ticker information
@@ -146,7 +169,7 @@ func (p *HitBTC) GetTicker(symbol string) (map[string]Ticker, error) {
 	var err error
 
 	if symbol == "" {
-		err = common.SendHTTPGetRequest(path, true, false, &resp1)
+		err = p.SendHTTPRequest(path, &resp1)
 		if err != nil {
 			return nil, err
 		}
@@ -157,7 +180,7 @@ func (p *HitBTC) GetTicker(symbol string) (map[string]Ticker, error) {
 			}
 		}
 	} else {
-		err = common.SendHTTPGetRequest(path, true, false, &resp2)
+		err = p.SendHTTPRequest(path, &resp2)
 		ret[resp2.Symbol] = resp2
 	}
 
@@ -235,7 +258,7 @@ func (p *HitBTC) GetTrades(currencyPair, from, till, limit, offset, by, sort str
 	resp := []TradeHistory{}
 	path := fmt.Sprintf("%s/%s/%s?%s", apiURL, apiV2Trades, currencyPair, vals.Encode())
 
-	return resp, common.SendHTTPGetRequest(path, true, p.Verbose, &resp)
+	return resp, p.SendHTTPRequest(path, &resp)
 }
 
 // GetOrderbook an order book is an electronic list of buy and sell orders for a
@@ -251,7 +274,7 @@ func (p *HitBTC) GetOrderbook(currencyPair string, limit int) (Orderbook, error)
 	resp := OrderbookResponse{}
 	path := fmt.Sprintf("%s/%s/%s?%s", apiURL, apiV2Orderbook, currencyPair, vals.Encode())
 
-	err := common.SendHTTPGetRequest(path, true, p.Verbose, &resp)
+	err := p.SendHTTPRequest(path, &resp)
 	if err != nil {
 		return Orderbook{}, err
 	}
@@ -285,7 +308,7 @@ func (p *HitBTC) GetCandles(currencyPair, limit, period string) ([]ChartData, er
 	resp := []ChartData{}
 	path := fmt.Sprintf("%s/%s/%s?%s", apiURL, apiV2Candles, currencyPair, vals.Encode())
 
-	return resp, common.SendHTTPGetRequest(path, true, p.Verbose, &resp)
+	return resp, p.SendHTTPRequest(path, &resp)
 }
 
 // Authenticated Market Data
@@ -511,6 +534,11 @@ func (p *HitBTC) TransferBalance(currency, from, to string, amount float64) (boo
 	return true, nil
 }
 
+// SendHTTPRequest sends an unauthenticated HTTP request
+func (p *HitBTC) SendHTTPRequest(path string, result interface{}) error {
+	return p.SendPayload("GET", path, nil, nil, result, false, p.Verbose)
+}
+
 // SendAuthenticatedHTTPRequest sends an authenticated http request
 func (p *HitBTC) SendAuthenticatedHTTPRequest(method, endpoint string, values url.Values, result interface{}) error {
 	if !p.AuthenticatedAPISupport {
@@ -521,15 +549,5 @@ func (p *HitBTC) SendAuthenticatedHTTPRequest(method, endpoint string, values ur
 
 	path := fmt.Sprintf("%s/%s", apiURL, endpoint)
 
-	resp, err := common.SendHTTPRequest(method, path, headers, bytes.NewBufferString(values.Encode()))
-	if err != nil {
-		return err
-	}
-
-	err = common.JSONDecode([]byte(resp), &result)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return p.SendPayload(method, path, headers, bytes.NewBufferString(values.Encode()), result, true, p.Verbose)
 }

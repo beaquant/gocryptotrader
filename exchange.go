@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"log"
+	"sync"
 
 	"github.com/thrasher-/gocryptotrader/common"
 	exchange "github.com/thrasher-/gocryptotrader/exchanges"
@@ -11,16 +12,19 @@ import (
 	"github.com/thrasher-/gocryptotrader/exchanges/bitfinex"
 	"github.com/thrasher-/gocryptotrader/exchanges/bitflyer"
 	"github.com/thrasher-/gocryptotrader/exchanges/bithumb"
+	"github.com/thrasher-/gocryptotrader/exchanges/bitmex"
 	"github.com/thrasher-/gocryptotrader/exchanges/bitstamp"
 	"github.com/thrasher-/gocryptotrader/exchanges/bittrex"
 	"github.com/thrasher-/gocryptotrader/exchanges/btcc"
 	"github.com/thrasher-/gocryptotrader/exchanges/btcmarkets"
+	"github.com/thrasher-/gocryptotrader/exchanges/coinbasepro"
 	"github.com/thrasher-/gocryptotrader/exchanges/coinut"
 	"github.com/thrasher-/gocryptotrader/exchanges/exmo"
-	"github.com/thrasher-/gocryptotrader/exchanges/gdax"
+	"github.com/thrasher-/gocryptotrader/exchanges/gateio"
 	"github.com/thrasher-/gocryptotrader/exchanges/gemini"
 	"github.com/thrasher-/gocryptotrader/exchanges/hitbtc"
 	"github.com/thrasher-/gocryptotrader/exchanges/huobi"
+	"github.com/thrasher-/gocryptotrader/exchanges/huobihadax"
 	"github.com/thrasher-/gocryptotrader/exchanges/itbit"
 	"github.com/thrasher-/gocryptotrader/exchanges/kraken"
 	"github.com/thrasher-/gocryptotrader/exchanges/lakebtc"
@@ -31,6 +35,7 @@ import (
 	"github.com/thrasher-/gocryptotrader/exchanges/poloniex"
 	"github.com/thrasher-/gocryptotrader/exchanges/wex"
 	"github.com/thrasher-/gocryptotrader/exchanges/yobit"
+	"github.com/thrasher-/gocryptotrader/exchanges/zb"
 )
 
 // vars related to exchange functions
@@ -120,7 +125,7 @@ func UnloadExchange(name string) error {
 }
 
 // LoadExchange loads an exchange by name
-func LoadExchange(name string) error {
+func LoadExchange(name string, useWG bool, wg *sync.WaitGroup) error {
 	nameLower := common.StringToLower(name)
 	var exch exchange.IBotExchange
 
@@ -141,6 +146,8 @@ func LoadExchange(name string) error {
 		exch = new(bitflyer.Bitflyer)
 	case "bithumb":
 		exch = new(bithumb.Bithumb)
+	case "bitmex":
+		exch = new(bitmex.Bitmex)
 	case "bitstamp":
 		exch = new(bitstamp.Bitstamp)
 	case "bittrex":
@@ -153,14 +160,18 @@ func LoadExchange(name string) error {
 		exch = new(coinut.COINUT)
 	case "exmo":
 		exch = new(exmo.EXMO)
-	case "gdax":
-		exch = new(gdax.GDAX)
+	case "coinbasepro":
+		exch = new(coinbasepro.CoinbasePro)
+	case "gateio":
+		exch = new(gateio.Gateio)
 	case "gemini":
 		exch = new(gemini.Gemini)
 	case "hitbtc":
 		exch = new(hitbtc.HitBTC)
 	case "huobi":
 		exch = new(huobi.HUOBI)
+	case "huobihadax":
+		exch = new(huobihadax.HUOBIHADAX)
 	case "itbit":
 		exch = new(itbit.ItBit)
 	case "kraken":
@@ -183,6 +194,8 @@ func LoadExchange(name string) error {
 		exch = new(wex.WEX)
 	case "yobit":
 		exch = new(yobit.Yobit)
+	case "zb":
+		exch = new(zb.ZB)
 	default:
 		return ErrExchangeNotFound
 	}
@@ -200,12 +213,20 @@ func LoadExchange(name string) error {
 
 	exchCfg.Enabled = true
 	exch.Setup(exchCfg)
-	exch.Start()
+
+	if useWG {
+		exch.Start(wg)
+	} else {
+		wg := sync.WaitGroup{}
+		exch.Start(&wg)
+		wg.Wait()
+	}
 	return nil
 }
 
 // SetupExchanges sets up the exchanges used by the bot
 func SetupExchanges() {
+	var wg sync.WaitGroup
 	for _, exch := range bot.config.Exchanges {
 		if CheckExchangeExists(exch.Name) {
 			e := GetExchangeByName(exch.Name)
@@ -231,7 +252,7 @@ func SetupExchanges() {
 			log.Printf("%s: Exchange support: Disabled", exch.Name)
 			continue
 		} else {
-			err := LoadExchange(exch.Name)
+			err := LoadExchange(exch.Name, true, &wg)
 			if err != nil {
 				log.Printf("LoadExchange %s failed: %s", exch.Name, err)
 				continue
@@ -244,4 +265,5 @@ func SetupExchanges() {
 			common.IsEnabled(exch.Verbose),
 		)
 	}
+	wg.Wait()
 }

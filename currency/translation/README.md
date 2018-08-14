@@ -22,6 +22,16 @@ Join our slack to discuss all things related to GoCryptoTrader! [GoCryptoTrader 
 
 + This package services the currency package with translation functions.
 
++ Example below:
+```go
+import "github.com/thrasher-/gocryptotrader/currency/translation"
+
+// Is translatable
+b := translation.HasTranslation("BTC")
+
+// b == true; translation = XBT
+```
+
 ### Please click GoDocs chevron above to view current GoDoc information for this package
 
 ## Contribution
@@ -37,7 +47,7 @@ When submitting a PR, please abide by our coding guidelines:
 
 ## Donations
 
-<img src="https://github.com/thrasher-/gocryptotrader/blob/master/web/src/assets/early-dumb-donate.png?raw=true" hspace="70">
+<img src="https://github.com/thrasher-/gocryptotrader/blob/master/web/src/assets/donate.png?raw=true" hspace="70">
 
 If this framework helped you in any way, or you would like to support the developers working on it, please donate Bitcoin to:
 

@@ -3,17 +3,22 @@ package bittrex
 import (
 	"errors"
 	"log"
+	"sync"
 
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/currency/pair"
-	"github.com/thrasher-/gocryptotrader/exchanges"
+	exchange "github.com/thrasher-/gocryptotrader/exchanges"
 	"github.com/thrasher-/gocryptotrader/exchanges/orderbook"
 	"github.com/thrasher-/gocryptotrader/exchanges/ticker"
 )
 
 // Start starts the Bittrex go routine
-func (b *Bittrex) Start() {
-	go b.Run()
+func (b *Bittrex) Start(wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		b.Run()
+		wg.Done()
+	}()
 }
 
 // Run implements the Bittrex wrapper
@@ -32,23 +37,23 @@ func (b *Bittrex) Run() {
 			forceUpgrade = true
 		}
 		var currencies []string
-		for x := range exchangeProducts {
-			if !exchangeProducts[x].IsActive || exchangeProducts[x].MarketName == "" {
+		for x := range exchangeProducts.Result {
+			if !exchangeProducts.Result[x].IsActive || exchangeProducts.Result[x].MarketName == "" {
 				continue
 			}
-			currencies = append(currencies, exchangeProducts[x].MarketName)
+			currencies = append(currencies, exchangeProducts.Result[x].MarketName)
 		}
 
 		if forceUpgrade {
 			enabledPairs := []string{"USDT-BTC"}
 			log.Println("WARNING: Available pairs for Bittrex reset due to config upgrade, please enable the ones you would like again")
 
-			err = b.UpdateEnabledCurrencies(enabledPairs, true)
+			err = b.UpdateCurrencies(enabledPairs, true, true)
 			if err != nil {
 				log.Printf("%s Failed to get config.\n", b.GetName())
 			}
 		}
-		err = b.UpdateAvailableCurrencies(currencies, forceUpgrade)
+		err = b.UpdateCurrencies(currencies, false, forceUpgrade)
 		if err != nil {
 			log.Printf("%s Failed to get config.\n", b.GetName())
 		}
@@ -65,11 +70,11 @@ func (b *Bittrex) GetExchangeAccountInfo() (exchange.AccountInfo, error) {
 		return response, err
 	}
 
-	for i := 0; i < len(accountBalance); i++ {
+	for i := 0; i < len(accountBalance.Result); i++ {
 		var exchangeCurrency exchange.AccountCurrencyInfo
-		exchangeCurrency.CurrencyName = accountBalance[i].Currency
-		exchangeCurrency.TotalValue = accountBalance[i].Balance
-		exchangeCurrency.Hold = accountBalance[i].Balance - accountBalance[i].Available
+		exchangeCurrency.CurrencyName = accountBalance.Result[i].Currency
+		exchangeCurrency.TotalValue = accountBalance.Result[i].Balance
+		exchangeCurrency.Hold = accountBalance.Result[i].Balance - accountBalance.Result[i].Available
 		response.Currencies = append(response.Currencies, exchangeCurrency)
 	}
 	return response, nil
@@ -85,15 +90,15 @@ func (b *Bittrex) UpdateTicker(p pair.CurrencyPair, assetType string) (ticker.Pr
 
 	for _, x := range b.GetEnabledCurrencies() {
 		curr := exchange.FormatExchangeCurrency(b.Name, x)
-		for y := range tick {
-			if tick[y].MarketName == curr.String() {
+		for y := range tick.Result {
+			if tick.Result[y].MarketName == curr.String() {
 				tickerPrice.Pair = x
-				tickerPrice.High = tick[y].High
-				tickerPrice.Low = tick[y].Low
-				tickerPrice.Ask = tick[y].Ask
-				tickerPrice.Bid = tick[y].Bid
-				tickerPrice.Last = tick[y].Last
-				tickerPrice.Volume = tick[y].Volume
+				tickerPrice.High = tick.Result[y].High
+				tickerPrice.Low = tick.Result[y].Low
+				tickerPrice.Ask = tick.Result[y].Ask
+				tickerPrice.Bid = tick.Result[y].Bid
+				tickerPrice.Last = tick.Result[y].Last
+				tickerPrice.Volume = tick.Result[y].Volume
 				ticker.ProcessTicker(b.GetName(), x, tickerPrice, assetType)
 			}
 		}
@@ -127,20 +132,20 @@ func (b *Bittrex) UpdateOrderbook(p pair.CurrencyPair, assetType string) (orderb
 		return orderBook, err
 	}
 
-	for x := range orderbookNew.Buy {
+	for x := range orderbookNew.Result.Buy {
 		orderBook.Bids = append(orderBook.Bids,
 			orderbook.Item{
-				Amount: orderbookNew.Buy[x].Quantity,
-				Price:  orderbookNew.Buy[x].Rate,
+				Amount: orderbookNew.Result.Buy[x].Quantity,
+				Price:  orderbookNew.Result.Buy[x].Rate,
 			},
 		)
 	}
 
-	for x := range orderbookNew.Sell {
+	for x := range orderbookNew.Result.Sell {
 		orderBook.Asks = append(orderBook.Asks,
 			orderbook.Item{
-				Amount: orderbookNew.Sell[x].Quantity,
-				Price:  orderbookNew.Sell[x].Rate,
+				Amount: orderbookNew.Result.Sell[x].Quantity,
+				Price:  orderbookNew.Result.Sell[x].Rate,
 			},
 		)
 	}
@@ -149,9 +154,66 @@ func (b *Bittrex) UpdateOrderbook(p pair.CurrencyPair, assetType string) (orderb
 	return orderbook.GetOrderbook(b.Name, p, assetType)
 }
 
+// GetExchangeFundTransferHistory returns funding history, deposits and
+// withdrawals
+func (b *Bittrex) GetExchangeFundTransferHistory() ([]exchange.FundHistory, error) {
+	var fundHistory []exchange.FundHistory
+	return fundHistory, errors.New("not supported on exchange")
+}
+
 // GetExchangeHistory returns historic trade data since exchange opening.
 func (b *Bittrex) GetExchangeHistory(p pair.CurrencyPair, assetType string) ([]exchange.TradeHistory, error) {
 	var resp []exchange.TradeHistory
 
 	return resp, errors.New("trade history not yet implemented")
+}
+
+// SubmitExchangeOrder submits a new order
+func (b *Bittrex) SubmitExchangeOrder(p pair.CurrencyPair, side exchange.OrderSide, orderType exchange.OrderType, amount, price float64, clientID string) (int64, error) {
+	return 0, errors.New("not yet implemented")
+}
+
+// ModifyExchangeOrder will allow of changing orderbook placement and limit to
+// market conversion
+func (b *Bittrex) ModifyExchangeOrder(orderID int64, action exchange.ModifyOrder) (int64, error) {
+	return 0, errors.New("not yet implemented")
+}
+
+// CancelExchangeOrder cancels an order by its corresponding ID number
+func (b *Bittrex) CancelExchangeOrder(orderID int64) error {
+	return errors.New("not yet implemented")
+}
+
+// CancelAllExchangeOrders cancels all orders associated with a currency pair
+func (b *Bittrex) CancelAllExchangeOrders() error {
+	return errors.New("not yet implemented")
+}
+
+// GetExchangeOrderInfo returns information on a current open order
+func (b *Bittrex) GetExchangeOrderInfo(orderID int64) (exchange.OrderDetail, error) {
+	var orderDetail exchange.OrderDetail
+	return orderDetail, errors.New("not yet implemented")
+}
+
+// GetExchangeDepositAddress returns a deposit address for a specified currency
+func (b *Bittrex) GetExchangeDepositAddress(cryptocurrency pair.CurrencyItem) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawCryptoExchangeFunds returns a withdrawal ID when a withdrawal is
+// submitted
+func (b *Bittrex) WithdrawCryptoExchangeFunds(address string, cryptocurrency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawFiatExchangeFunds returns a withdrawal ID when a
+// withdrawal is submitted
+func (b *Bittrex) WithdrawFiatExchangeFunds(currency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawFiatExchangeFundsToInternationalBank returns a withdrawal ID when a
+// withdrawal is submitted
+func (b *Bittrex) WithdrawFiatExchangeFundsToInternationalBank(currency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
 }

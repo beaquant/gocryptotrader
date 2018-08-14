@@ -10,6 +10,7 @@ type Ticker struct {
 	High      float64 `json:"high,string"`
 	Volume    float64 `json:"volume,string"`
 	Timestamp string  `json:"timestamp"`
+	Message   string  `json:"message"`
 }
 
 // Tickerv2 holds the version 2 ticker information
@@ -43,8 +44,9 @@ type Stat struct {
 
 // FundingBook holds current the full margin funding book
 type FundingBook struct {
-	Bids []Book `json:"bids"`
-	Asks []Book `json:"asks"`
+	Bids    []Book `json:"bids"`
+	Asks    []Book `json:"asks"`
+	Message string `json:"message"`
 }
 
 // Orderbook holds orderbook information from bid and ask sides
@@ -123,15 +125,25 @@ type SymbolDetails struct {
 	Expiration       string  `json:"expiration"`
 }
 
+// AccountInfoFull adds the error message to Account info
+type AccountInfoFull struct {
+	Info    []AccountInfo
+	Message string `json:"message"`
+}
+
 // AccountInfo general account information with fees
 type AccountInfo struct {
+	MakerFees string            `json:"maker_fees"`
+	TakerFees string            `json:"taker_fees"`
+	Fees      []AccountInfoFees `json:"fees"`
+	Message   string            `json:"message"`
+}
+
+// AccountInfoFees general account information with fees
+type AccountInfoFees struct {
+	Pairs     string `json:"pairs"`
 	MakerFees string `json:"maker_fees"`
 	TakerFees string `json:"taker_fees"`
-	Fees      []struct {
-		Pairs     string `json:"pairs"`
-		MakerFees string `json:"maker_fees"`
-		TakerFees string `json:"taker_fees"`
-	} `json:"fees"`
 }
 
 // AccountFees stores withdrawal account fee data from Bitfinex
@@ -453,3 +465,22 @@ type WebsocketTradeExecuted struct {
 type ErrorCapture struct {
 	Message string `json:"message"`
 }
+
+// TimeInterval represents interval enum.
+type TimeInterval string
+
+// TimeInvterval vars
+var (
+	TimeIntervalMinute         = TimeInterval("1m")
+	TimeIntervalFiveMinutes    = TimeInterval("5m")
+	TimeIntervalFifteenMinutes = TimeInterval("15m")
+	TimeIntervalThirtyMinutes  = TimeInterval("30m")
+	TimeIntervalHour           = TimeInterval("1h")
+	TimeIntervalThreeHours     = TimeInterval("3h")
+	TimeIntervalSixHours       = TimeInterval("6h")
+	TimeIntervalTwelveHours    = TimeInterval("12h")
+	TimeIntervalDay            = TimeInterval("1d")
+	TimeIntervalSevenDays      = TimeInterval("7d")
+	TimeIntervalFourteenDays   = TimeInterval("14d")
+	TimeIntervalMonth          = TimeInterval("1M")
+)

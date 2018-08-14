@@ -11,6 +11,7 @@ import (
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/config"
 	"github.com/thrasher-/gocryptotrader/exchanges"
+	"github.com/thrasher-/gocryptotrader/exchanges/request"
 	"github.com/thrasher-/gocryptotrader/exchanges/ticker"
 )
 
@@ -18,6 +19,7 @@ const (
 	anxAPIURL          = "https://anxpro.com/"
 	anxAPIVersion      = "3"
 	anxAPIKey          = "apiKey"
+	anxCurrencies      = "currencyStatic"
 	anxDataToken       = "dataToken"
 	anxOrderNew        = "order/new"
 	anxOrderInfo       = "order/info"
@@ -27,6 +29,10 @@ const (
 	anxCreateAddress   = "receive/create"
 	anxTicker          = "money/ticker"
 	anxDepth           = "money/depth/full"
+
+	// ANX rate limites for authenticated and unauthenticated requests
+	anxAuthRate   = 0
+	anxUnauthRate = 0
 )
 
 // ANX is the overarching type across the alphapoint package
@@ -45,11 +51,14 @@ func (a *ANX) SetDefaults() {
 	a.RESTPollingDelay = 10
 	a.RequestCurrencyPairFormat.Delimiter = ""
 	a.RequestCurrencyPairFormat.Uppercase = true
-	a.RequestCurrencyPairFormat.Index = "BTC"
-	a.ConfigCurrencyPairFormat.Delimiter = ""
+	a.RequestCurrencyPairFormat.Index = ""
+	a.ConfigCurrencyPairFormat.Delimiter = "_"
 	a.ConfigCurrencyPairFormat.Uppercase = true
-	a.ConfigCurrencyPairFormat.Index = "BTC"
+	a.ConfigCurrencyPairFormat.Index = ""
 	a.AssetTypes = []string{ticker.Spot}
+	a.SupportsAutoPairUpdating = true
+	a.SupportsRESTTickerBatching = false
+	a.Requester = request.New(a.Name, request.NewRateLimit(time.Second, anxAuthRate), request.NewRateLimit(time.Second, anxUnauthRate), common.NewHTTPClientWithTimeout(exchange.DefaultHTTPTimeout))
 }
 
 //Setup is run on startup to setup exchange with config values
@@ -60,6 +69,8 @@ func (a *ANX) Setup(exch config.ExchangeConfig) {
 		a.Enabled = true
 		a.AuthenticatedAPISupport = exch.AuthenticatedAPISupport
 		a.SetAPIKeys(exch.APIKey, exch.APISecret, "", true)
+		a.SetHTTPClientTimeout(exch.HTTPTimeout)
+		a.SetHTTPClientUserAgent(exch.HTTPUserAgent)
 		a.RESTPollingDelay = exch.RESTPollingDelay
 		a.Verbose = exch.Verbose
 		a.Websocket = exch.Websocket
@@ -74,7 +85,25 @@ func (a *ANX) Setup(exch config.ExchangeConfig) {
 		if err != nil {
 			log.Fatal(err)
 		}
+		err = a.SetAutoPairDefaults()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
+}
+
+// GetCurrencies returns a list of supported currencies (both fiat
+// and cryptocurrencies)
+func (a *ANX) GetCurrencies() (CurrenciesStore, error) {
+	var result CurrenciesStaticResponse
+	path := fmt.Sprintf("%sapi/3/%s", anxAPIURL, anxCurrencies)
+
+	err := a.SendHTTPRequest(path, &result)
+	if err != nil {
+		return CurrenciesStore{}, err
+	}
+
+	return result.CurrenciesResponse, nil
 }
 
 // GetFee returns maker or taker fees
@@ -90,7 +119,7 @@ func (a *ANX) GetTicker(currency string) (Ticker, error) {
 	var ticker Ticker
 	path := fmt.Sprintf("%sapi/2/%s/%s", anxAPIURL, currency, anxTicker)
 
-	return ticker, common.SendHTTPGetRequest(path, true, a.Verbose, &ticker)
+	return ticker, a.SendHTTPRequest(path, &ticker)
 }
 
 // GetDepth returns current orderbook depth.
@@ -98,7 +127,7 @@ func (a *ANX) GetDepth(currency string) (Depth, error) {
 	var depth Depth
 	path := fmt.Sprintf("%sapi/2/%s/%s", anxAPIURL, currency, anxDepth)
 
-	return depth, common.SendHTTPGetRequest(path, true, a.Verbose, &depth)
+	return depth, a.SendHTTPRequest(path, &depth)
 }
 
 // GetAPIKey returns a new generated API key set.
@@ -319,6 +348,11 @@ func (a *ANX) GetDepositAddress(currency, name string, new bool) (string, error)
 	return response.Address, nil
 }
 
+// SendHTTPRequest sends an unauthenticated HTTP request
+func (a *ANX) SendHTTPRequest(path string, result interface{}) error {
+	return a.SendPayload("GET", path, nil, nil, result, false, a.Verbose)
+}
+
 // SendAuthenticatedHTTPRequest sends a authenticated HTTP request
 func (a *ANX) SendAuthenticatedHTTPRequest(path string, params map[string]interface{}, result interface{}) error {
 	if !a.AuthenticatedAPISupport {
@@ -357,20 +391,5 @@ func (a *ANX) SendAuthenticatedHTTPRequest(path string, params map[string]interf
 	headers["Rest-Sign"] = common.Base64Encode([]byte(hmac))
 	headers["Content-Type"] = "application/json"
 
-	resp, err := common.SendHTTPRequest("POST", anxAPIURL+path, headers, bytes.NewBuffer(PayloadJSON))
-	if err != nil {
-		return err
-	}
-
-	if a.Verbose {
-		log.Printf("Received raw: \n%s\n", resp)
-	}
-
-	err = common.JSONDecode([]byte(resp), &result)
-
-	if err != nil {
-		return errors.New("unable to JSON Unmarshal response")
-	}
-
-	return nil
+	return a.SendPayload("POST", anxAPIURL+path, headers, bytes.NewBuffer(PayloadJSON), result, true, a.Verbose)
 }

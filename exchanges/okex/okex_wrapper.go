@@ -3,6 +3,7 @@ package okex
 import (
 	"errors"
 	"log"
+	"sync"
 
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/currency/pair"
@@ -12,8 +13,12 @@ import (
 )
 
 // Start starts the OKEX go routine
-func (o *OKEX) Start() {
-	go o.Run()
+func (o *OKEX) Start(wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		o.Run()
+		wg.Done()
+	}()
 }
 
 // Run implements the OKEX wrapper
@@ -120,7 +125,10 @@ func (o *OKEX) UpdateOrderbook(p pair.CurrencyPair, assetType string) (orderbook
 			currency = exchange.FormatExchangeCurrency(o.Name, p).String()
 		}
 
-		orderbookNew, err := o.GetSpotMarketDepth(currency, "200")
+		orderbookNew, err := o.GetSpotMarketDepth(ActualSpotDepthRequestParams{
+			Symbol: currency,
+			Size:   200,
+		})
 		if err != nil {
 			return orderBook, err
 		}
@@ -147,9 +155,66 @@ func (o *OKEX) GetExchangeAccountInfo() (exchange.AccountInfo, error) {
 	return response, errors.New("not implemented")
 }
 
+// GetExchangeFundTransferHistory returns funding history, deposits and
+// withdrawals
+func (o *OKEX) GetExchangeFundTransferHistory() ([]exchange.FundHistory, error) {
+	var fundHistory []exchange.FundHistory
+	return fundHistory, errors.New("not supported on exchange")
+}
+
 // GetExchangeHistory returns historic trade data since exchange opening.
 func (o *OKEX) GetExchangeHistory(p pair.CurrencyPair, assetType string) ([]exchange.TradeHistory, error) {
 	var resp []exchange.TradeHistory
 
 	return resp, errors.New("trade history not yet implemented")
+}
+
+// SubmitExchangeOrder submits a new order
+func (o *OKEX) SubmitExchangeOrder(p pair.CurrencyPair, side exchange.OrderSide, orderType exchange.OrderType, amount, price float64, clientID string) (int64, error) {
+	return 0, errors.New("not yet implemented")
+}
+
+// ModifyExchangeOrder will allow of changing orderbook placement and limit to
+// market conversion
+func (o *OKEX) ModifyExchangeOrder(orderID int64, action exchange.ModifyOrder) (int64, error) {
+	return 0, errors.New("not yet implemented")
+}
+
+// CancelExchangeOrder cancels an order by its corresponding ID number
+func (o *OKEX) CancelExchangeOrder(orderID int64) error {
+	return errors.New("not yet implemented")
+}
+
+// CancelAllExchangeOrders cancels all orders associated with a currency pair
+func (o *OKEX) CancelAllExchangeOrders() error {
+	return errors.New("not yet implemented")
+}
+
+// GetExchangeOrderInfo returns information on a current open order
+func (o *OKEX) GetExchangeOrderInfo(orderID int64) (exchange.OrderDetail, error) {
+	var orderDetail exchange.OrderDetail
+	return orderDetail, errors.New("not yet implemented")
+}
+
+// GetExchangeDepositAddress returns a deposit address for a specified currency
+func (o *OKEX) GetExchangeDepositAddress(cryptocurrency pair.CurrencyItem) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawCryptoExchangeFunds returns a withdrawal ID when a withdrawal is
+// submitted
+func (o *OKEX) WithdrawCryptoExchangeFunds(address string, cryptocurrency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawFiatExchangeFunds returns a withdrawal ID when a
+// withdrawal is submitted
+func (o *OKEX) WithdrawFiatExchangeFunds(currency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawFiatExchangeFundsToInternationalBank returns a withdrawal ID when a
+// withdrawal is submitted
+func (o *OKEX) WithdrawFiatExchangeFundsToInternationalBank(currency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
 }

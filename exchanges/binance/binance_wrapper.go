@@ -3,6 +3,7 @@ package binance
 import (
 	"errors"
 	"log"
+	"sync"
 
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/currency/pair"
@@ -12,8 +13,12 @@ import (
 )
 
 // Start starts the OKEX go routine
-func (b *Binance) Start() {
-	go b.Run()
+func (b *Binance) Start(wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		b.Run()
+		wg.Done()
+	}()
 }
 
 // Run implements the OKEX wrapper
@@ -22,6 +27,10 @@ func (b *Binance) Run() {
 		log.Printf("%s Websocket: %s. (url: %s).\n", b.GetName(), common.IsEnabled(b.Websocket), b.WebsocketURL)
 		log.Printf("%s polling delay: %ds.\n", b.GetName(), b.RESTPollingDelay)
 		log.Printf("%s %d currencies enabled: %s.\n", b.GetName(), len(b.EnabledPairs), b.EnabledPairs)
+	}
+
+	if b.Websocket {
+		go b.WebsocketClient()
 	}
 
 	symbols, err := b.GetExchangeValidCurrencyPairs()
@@ -37,12 +46,12 @@ func (b *Binance) Run() {
 			enabledPairs := []string{"BTC-USDT"}
 			log.Println("WARNING: Available pairs for Binance reset due to config upgrade, please enable the ones you would like again")
 
-			err = b.UpdateEnabledCurrencies(enabledPairs, true)
+			err = b.UpdateCurrencies(enabledPairs, true, true)
 			if err != nil {
 				log.Printf("%s Failed to get config.\n", b.GetName())
 			}
 		}
-		err = b.UpdateAvailableCurrencies(symbols, forceUpgrade)
+		err = b.UpdateCurrencies(symbols, false, forceUpgrade)
 		if err != nil {
 			log.Printf("%s Failed to get config.\n", b.GetName())
 		}
@@ -97,7 +106,7 @@ func (b *Binance) GetOrderbookEx(currency pair.CurrencyPair, assetType string) (
 // UpdateOrderbook updates and returns the orderbook for a currency pair
 func (b *Binance) UpdateOrderbook(p pair.CurrencyPair, assetType string) (orderbook.Base, error) {
 	var orderBook orderbook.Base
-	orderbookNew, err := b.GetOrderBook(exchange.FormatExchangeCurrency(b.Name, p).String(), 1000)
+	orderbookNew, err := b.GetOrderBook(OrderBookDataRequestParams{Symbol: exchange.FormatExchangeCurrency(b.Name, p).String(), Limit: 1000})
 	if err != nil {
 		return orderBook, err
 	}
@@ -121,9 +130,66 @@ func (b *Binance) GetExchangeAccountInfo() (exchange.AccountInfo, error) {
 	return response, errors.New("not implemented")
 }
 
+// GetExchangeFundTransferHistory returns funding history, deposits and
+// withdrawals
+func (b *Binance) GetExchangeFundTransferHistory() ([]exchange.FundHistory, error) {
+	var fundHistory []exchange.FundHistory
+	return fundHistory, errors.New("not supported on exchange")
+}
+
 // GetExchangeHistory returns historic trade data since exchange opening.
 func (b *Binance) GetExchangeHistory(p pair.CurrencyPair, assetType string) ([]exchange.TradeHistory, error) {
 	var resp []exchange.TradeHistory
 
 	return resp, errors.New("trade history not yet implemented")
+}
+
+// SubmitExchangeOrder submits a new order
+func (b *Binance) SubmitExchangeOrder(p pair.CurrencyPair, side exchange.OrderSide, orderType exchange.OrderType, amount, price float64, clientID string) (int64, error) {
+	return 0, errors.New("not yet implemented")
+}
+
+// ModifyExchangeOrder will allow of changing orderbook placement and limit to
+// market conversion
+func (b *Binance) ModifyExchangeOrder(orderID int64, action exchange.ModifyOrder) (int64, error) {
+	return 0, errors.New("not yet implemented")
+}
+
+// CancelExchangeOrder cancels an order by its corresponding ID number
+func (b *Binance) CancelExchangeOrder(orderID int64) error {
+	return errors.New("not yet implemented")
+}
+
+// CancelAllExchangeOrders cancels all orders associated with a currency pair
+func (b *Binance) CancelAllExchangeOrders() error {
+	return errors.New("not yet implemented")
+}
+
+// GetExchangeOrderInfo returns information on a current open order
+func (b *Binance) GetExchangeOrderInfo(orderID int64) (exchange.OrderDetail, error) {
+	var orderDetail exchange.OrderDetail
+	return orderDetail, errors.New("not yet implemented")
+}
+
+// GetExchangeDepositAddress returns a deposit address for a specified currency
+func (b *Binance) GetExchangeDepositAddress(cryptocurrency pair.CurrencyItem) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawCryptoExchangeFunds returns a withdrawal ID when a withdrawal is
+// submitted
+func (b *Binance) WithdrawCryptoExchangeFunds(address string, cryptocurrency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawFiatExchangeFunds returns a withdrawal ID when a
+// withdrawal is submitted
+func (b *Binance) WithdrawFiatExchangeFunds(currency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawFiatExchangeFundsToInternationalBank returns a withdrawal ID when a
+// withdrawal is submitted
+func (b *Binance) WithdrawFiatExchangeFundsToInternationalBank(currency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
 }

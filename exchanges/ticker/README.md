@@ -22,6 +22,38 @@ Join our slack to discuss all things related to GoCryptoTrader! [GoCryptoTrader 
 
 + This services the exchanges package by ticker functions.
 
++ This package facilitates ticker generation.
++ Attaches methods to an ticker
+  - Returns a string of a value
+
++ Gets a loaded ticker by exchange, asset type and currency pair.
+
++ This package is primarily used in conjunction with but not limited to the
+exchange interface system set by exchange wrapper orderbook functions in
+"exchange"_wrapper.go.
+
+Examples below:
+
+```go
+tick, err := yobitExchange.GetTickerPrice()
+if err != nil {
+  // Handle error
+}
+
+// Converts ticker value to string
+tickerValString := tick.PriceToString(...)
+```
+
++ or if you have a routine setting an exchange orderbook you can access it via
+the package itself.
+
+```go
+tick, err := ticker.GetTicker(...)
+if err != nil {
+  // Handle error
+}
+```
+
 ### Please click GoDocs chevron above to view current GoDoc information for this package
 
 ## Contribution
@@ -37,7 +69,7 @@ When submitting a PR, please abide by our coding guidelines:
 
 ## Donations
 
-<img src="https://github.com/thrasher-/gocryptotrader/blob/master/web/src/assets/early-dumb-donate.png?raw=true" hspace="70">
+<img src="https://github.com/thrasher-/gocryptotrader/blob/master/web/src/assets/donate.png?raw=true" hspace="70">
 
 If this framework helped you in any way, or you would like to support the developers working on it, please donate Bitcoin to:
 

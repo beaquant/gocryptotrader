@@ -11,7 +11,7 @@ type Response struct {
 
 // KlineItem stores a kline item
 type KlineItem struct {
-	ID     int     `json:"id"`
+	ID     int64   `json:"id"`
 	Open   float64 `json:"open"`
 	Close  float64 `json:"close"`
 	Low    float64 `json:"low"`
@@ -21,17 +21,32 @@ type KlineItem struct {
 	Count  int     `json:"count"`
 }
 
-// Klines stores tan array of kline items
-type Klines struct {
-	Klines []KlineItem `json:"data"`
-}
-
 // DetailMerged stores the ticker detail merged data
 type DetailMerged struct {
 	Detail
 	Version int       `json:"version"`
 	Ask     []float64 `json:"ask"`
 	Bid     []float64 `json:"bid"`
+}
+
+// OrderBookDataRequestParamsType var for request param types
+type OrderBookDataRequestParamsType string
+
+// vars for OrderBookDataRequestParamsTypes
+var (
+	OrderBookDataRequestParamsTypeNone  = OrderBookDataRequestParamsType("")
+	OrderBookDataRequestParamsTypeStep0 = OrderBookDataRequestParamsType("step0")
+	OrderBookDataRequestParamsTypeStep1 = OrderBookDataRequestParamsType("step1")
+	OrderBookDataRequestParamsTypeStep2 = OrderBookDataRequestParamsType("step2")
+	OrderBookDataRequestParamsTypeStep3 = OrderBookDataRequestParamsType("step3")
+	OrderBookDataRequestParamsTypeStep4 = OrderBookDataRequestParamsType("step4")
+	OrderBookDataRequestParamsTypeStep5 = OrderBookDataRequestParamsType("step5")
+)
+
+// OrderBookDataRequestParams represents Klines request data.
+type OrderBookDataRequestParams struct {
+	Symbol string                         `json:"symbol"` // Required; example LTCBTC,BTCUSDT
+	Type   OrderBookDataRequestParamsType `json:"type"`   // step0, step1, step2, step3, step4, step5 (combined depth 0-5); when step0, no depth is merged
 }
 
 // Orderbook stores the orderbook data
@@ -64,7 +79,7 @@ type Detail struct {
 	Open      float64 `json:"open"`
 	Close     float64 `json:"close"`
 	High      float64 `json:"high"`
-	Timestamp int64   `json:"id"`
+	Timestamp int64   `json:"timestamp"`
 	ID        int     `json:"id"`
 	Count     int     `json:"count"`
 	Low       float64 `json:"low"`
@@ -88,8 +103,16 @@ type Account struct {
 	UserID int64  `json:"user-id"`
 }
 
-// AccountBalance stores the user account balance
+// AccountBalance stores the user all account balance
 type AccountBalance struct {
+	ID                    int64                  `json:"id"`
+	Type                  string                 `json:"type"`
+	State                 string                 `json:"state"`
+	AccountBalanceDetails []AccountBalanceDetail `json:"list"`
+}
+
+// AccountBalanceDetail stores the user account balance
+type AccountBalanceDetail struct {
 	Currency string  `json:"currency"`
 	Type     string  `json:"type"`
 	Balance  float64 `json:"balance,string"`
@@ -169,3 +192,56 @@ type MarginAccountBalance struct {
 	RiskRate string           `json:"risk-rate"`
 	List     []AccountBalance `json:"list"`
 }
+
+// SpotNewOrderRequestParams holds the params required to place
+// an order
+type SpotNewOrderRequestParams struct {
+	AccountID int                           `json:"account-id"` // Account ID, obtained using the accounts method. Curency trades use the accountid of the ‘spot’ account; for loan asset transactions, please use the accountid of the ‘margin’ account.
+	Amount    float64                       `json:"amount"`     // The limit price indicates the quantity of the order, the market price indicates how much to buy when the order is paid, and the market price indicates how much the coin is sold when the order is sold.
+	Price     float64                       `json:"price"`      // Order price, market price does not use  this parameter
+	Source    string                        `json:"source"`     // Order source, api: API call, margin-api: loan asset transaction
+	Symbol    string                        `json:"symbol"`     // The symbol to use; example btcusdt, bccbtc......
+	Type      SpotNewOrderRequestParamsType `json:"type"`       // 订单类型, buy-market: 市价买, sell-market: 市价卖, buy-limit: 限价买, sell-limit: 限价卖
+}
+
+// SpotNewOrderRequestParamsType order type
+type SpotNewOrderRequestParamsType string
+
+var (
+	// SpotNewOrderRequestTypeBuyMarket buy market order
+	SpotNewOrderRequestTypeBuyMarket = SpotNewOrderRequestParamsType("buy-market")
+
+	// SpotNewOrderRequestTypeSellMarket sell market order
+	SpotNewOrderRequestTypeSellMarket = SpotNewOrderRequestParamsType("sell-market")
+
+	// SpotNewOrderRequestTypeBuyLimit buy limit order
+	SpotNewOrderRequestTypeBuyLimit = SpotNewOrderRequestParamsType("buy-limit")
+
+	// SpotNewOrderRequestTypeSellLimit sell lmit order
+	SpotNewOrderRequestTypeSellLimit = SpotNewOrderRequestParamsType("sell-limit")
+)
+
+//-----------
+
+// KlinesRequestParams represents Klines request data.
+type KlinesRequestParams struct {
+	Symbol string       // Symbol to be used; example btcusdt, bccbtc......
+	Period TimeInterval // Kline time interval; 1min, 5min, 15min......
+	Size   int          // Size; [1-2000]
+}
+
+// TimeInterval base type
+type TimeInterval string
+
+// TimeInterval vars
+var (
+	TimeIntervalMinute         = TimeInterval("1min")
+	TimeIntervalFiveMinutes    = TimeInterval("5min")
+	TimeIntervalFifteenMinutes = TimeInterval("15min")
+	TimeIntervalThirtyMinutes  = TimeInterval("30min")
+	TimeIntervalHour           = TimeInterval("60min")
+	TimeIntervalDay            = TimeInterval("1day")
+	TimeIntervalWeek           = TimeInterval("1week")
+	TimeIntervalMohth          = TimeInterval("1mon")
+	TimeIntervalYear           = TimeInterval("1year")
+)

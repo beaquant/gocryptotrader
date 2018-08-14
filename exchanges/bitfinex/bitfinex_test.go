@@ -18,28 +18,14 @@ const (
 
 var b Bitfinex
 
-func TestSetDefaults(t *testing.T) {
-	b.SetDefaults()
-
-	if b.Name != "Bitfinex" || b.Enabled != false ||
-		b.Verbose != false || b.Websocket != false ||
-		b.RESTPollingDelay != 10 {
-		t.Error("Test Failed - Bitfinex SetDefaults values not set correctly")
-	}
-}
-
 func TestSetup(t *testing.T) {
-	setup := Bitfinex{}
-	setup.Name = "Bitfinex"
+	b.SetDefaults()
 	cfg := config.GetConfig()
 	cfg.LoadConfig("../../testdata/configtest.json")
 	bfxConfig, err := cfg.GetExchangeConfig("Bitfinex")
 	if err != nil {
 		t.Error("Test Failed - Bitfinex Setup() init error")
 	}
-	setup.Setup(bfxConfig)
-
-	b.SetDefaults()
 	b.Setup(bfxConfig)
 
 	if !b.Enabled || b.AuthenticatedAPISupport || b.RESTPollingDelay != time.Duration(10) ||
@@ -47,6 +33,10 @@ func TestSetup(t *testing.T) {
 		len(b.AvailablePairs) < 1 || len(b.EnabledPairs) < 1 {
 		t.Error("Test Failed - Bitfinex Setup values not set correctly")
 	}
+	b.AuthenticatedAPISupport = true
+	// custom rate limit for testing
+	b.Requester.SetRateLimit(true, time.Millisecond*300, 1)
+	b.Requester.SetRateLimit(false, time.Millisecond*300, 1)
 }
 
 func TestGetPlatformStatus(t *testing.T) {
@@ -62,14 +52,22 @@ func TestGetPlatformStatus(t *testing.T) {
 	}
 }
 
+func TestGetLatestSpotPrice(t *testing.T) {
+	t.Parallel()
+	_, err := b.GetLatestSpotPrice("BTCUSD")
+	if err != nil {
+		t.Error("Bitfinex GetLatestSpotPrice error: ", err)
+	}
+}
+
 func TestGetTicker(t *testing.T) {
 	t.Parallel()
-	_, err := b.GetTicker("BTCUSD", url.Values{})
+	_, err := b.GetTicker("BTCUSD")
 	if err != nil {
 		t.Error("BitfinexGetTicker init error: ", err)
 	}
 
-	_, err = b.GetTicker("wigwham", url.Values{})
+	_, err = b.GetTicker("wigwham")
 	if err == nil {
 		t.Error("Test Failed - GetTicker() error")
 	}
@@ -185,7 +183,7 @@ func TestGetSymbols(t *testing.T) {
 
 	symbols, err := b.GetSymbols()
 	if err != nil {
-		t.Error("BitfinexGetSymbols init error: ", err)
+		t.Fatal("BitfinexGetSymbols init error: ", err)
 	}
 	if reflect.TypeOf(symbols[0]).String() != "string" {
 		t.Error("Bitfinex GetSymbols is not a string")
@@ -238,6 +236,9 @@ func TestGetSymbolsDetails(t *testing.T) {
 }
 
 func TestGetAccountInfo(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetAccountInfo()
@@ -247,6 +248,9 @@ func TestGetAccountInfo(t *testing.T) {
 }
 
 func TestGetAccountFees(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetAccountFees()
@@ -256,6 +260,9 @@ func TestGetAccountFees(t *testing.T) {
 }
 
 func TestGetAccountSummary(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetAccountSummary()
@@ -265,6 +272,9 @@ func TestGetAccountSummary(t *testing.T) {
 }
 
 func TestNewDeposit(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.NewDeposit("blabla", "testwallet", 1)
@@ -274,6 +284,9 @@ func TestNewDeposit(t *testing.T) {
 }
 
 func TestGetKeyPermissions(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetKeyPermissions()
@@ -283,6 +296,9 @@ func TestGetKeyPermissions(t *testing.T) {
 }
 
 func TestGetMarginInfo(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetMarginInfo()
@@ -292,6 +308,9 @@ func TestGetMarginInfo(t *testing.T) {
 }
 
 func TestGetAccountBalance(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetAccountBalance()
@@ -301,6 +320,9 @@ func TestGetAccountBalance(t *testing.T) {
 }
 
 func TestWalletTransfer(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.WalletTransfer(0.01, "bla", "bla", "bla")
@@ -310,6 +332,9 @@ func TestWalletTransfer(t *testing.T) {
 }
 
 func TestWithdrawal(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.Withdrawal("LITECOIN", "deposit", "1000", 0.01)
@@ -319,6 +344,9 @@ func TestWithdrawal(t *testing.T) {
 }
 
 func TestNewOrder(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.NewOrder("BTCUSD", 1, 2, true, "market", false)
@@ -328,6 +356,9 @@ func TestNewOrder(t *testing.T) {
 }
 
 func TestNewOrderMulti(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	newOrder := []PlaceOrder{
@@ -348,6 +379,9 @@ func TestNewOrderMulti(t *testing.T) {
 }
 
 func TestCancelOrder(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.CancelOrder(1337)
@@ -357,6 +391,9 @@ func TestCancelOrder(t *testing.T) {
 }
 
 func TestCancelMultipleOrders(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.CancelMultipleOrders([]int64{1337, 1336})
@@ -366,6 +403,9 @@ func TestCancelMultipleOrders(t *testing.T) {
 }
 
 func TestCancelAllOrders(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.CancelAllOrders()
@@ -375,6 +415,9 @@ func TestCancelAllOrders(t *testing.T) {
 }
 
 func TestReplaceOrder(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.ReplaceOrder(1337, "BTCUSD", 1, 1, true, "market", false)
@@ -384,6 +427,9 @@ func TestReplaceOrder(t *testing.T) {
 }
 
 func TestGetOrderStatus(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetOrderStatus(1337)
@@ -393,6 +439,9 @@ func TestGetOrderStatus(t *testing.T) {
 }
 
 func TestGetActiveOrders(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetActiveOrders()
@@ -402,6 +451,9 @@ func TestGetActiveOrders(t *testing.T) {
 }
 
 func TestGetActivePositions(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetActivePositions()
@@ -411,6 +463,9 @@ func TestGetActivePositions(t *testing.T) {
 }
 
 func TestClaimPosition(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.ClaimPosition(1337)
@@ -420,6 +475,9 @@ func TestClaimPosition(t *testing.T) {
 }
 
 func TestGetBalanceHistory(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetBalanceHistory("USD", time.Time{}, time.Time{}, 1, "deposit")
@@ -429,6 +487,9 @@ func TestGetBalanceHistory(t *testing.T) {
 }
 
 func TestGetMovementHistory(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetMovementHistory("USD", "bitcoin", time.Time{}, time.Time{}, 1)
@@ -438,6 +499,9 @@ func TestGetMovementHistory(t *testing.T) {
 }
 
 func TestGetTradeHistory(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetTradeHistory("BTCUSD", time.Time{}, time.Time{}, 1, 0)
@@ -447,6 +511,9 @@ func TestGetTradeHistory(t *testing.T) {
 }
 
 func TestNewOffer(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.NewOffer("BTC", 1, 1, 1, "loan")
@@ -456,6 +523,9 @@ func TestNewOffer(t *testing.T) {
 }
 
 func TestCancelOffer(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.CancelOffer(1337)
@@ -465,6 +535,9 @@ func TestCancelOffer(t *testing.T) {
 }
 
 func TestGetOfferStatus(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetOfferStatus(1337)
@@ -474,6 +547,9 @@ func TestGetOfferStatus(t *testing.T) {
 }
 
 func TestGetActiveCredits(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetActiveCredits()
@@ -483,6 +559,9 @@ func TestGetActiveCredits(t *testing.T) {
 }
 
 func TestGetActiveOffers(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetActiveOffers()
@@ -492,6 +571,9 @@ func TestGetActiveOffers(t *testing.T) {
 }
 
 func TestGetActiveMarginFunding(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetActiveMarginFunding()
@@ -501,6 +583,9 @@ func TestGetActiveMarginFunding(t *testing.T) {
 }
 
 func TestGetUnusedMarginFunds(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetUnusedMarginFunds()
@@ -510,6 +595,9 @@ func TestGetUnusedMarginFunds(t *testing.T) {
 }
 
 func TestGetMarginTotalTakenFunds(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.GetMarginTotalTakenFunds()
@@ -519,6 +607,9 @@ func TestGetMarginTotalTakenFunds(t *testing.T) {
 }
 
 func TestCloseMarginFunding(t *testing.T) {
+	if b.APIKey == "" || b.APISecret == "" {
+		t.SkipNow()
+	}
 	t.Parallel()
 
 	_, err := b.CloseMarginFunding(1337)

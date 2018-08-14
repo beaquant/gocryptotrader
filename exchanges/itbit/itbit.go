@@ -12,6 +12,7 @@ import (
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/config"
 	"github.com/thrasher-/gocryptotrader/exchanges"
+	"github.com/thrasher-/gocryptotrader/exchanges/request"
 	"github.com/thrasher-/gocryptotrader/exchanges/ticker"
 )
 
@@ -28,6 +29,9 @@ const (
 	itbitOrders         = "orders"
 	itbitCryptoDeposits = "cryptocurrency_deposits"
 	itbitWalletTransfer = "wallet_transfers"
+
+	itbitAuthRate   = 0
+	itbitUnauthRate = 0
 )
 
 // ItBit is the overarching type across the ItBit package
@@ -49,6 +53,9 @@ func (i *ItBit) SetDefaults() {
 	i.ConfigCurrencyPairFormat.Delimiter = ""
 	i.ConfigCurrencyPairFormat.Uppercase = true
 	i.AssetTypes = []string{ticker.Spot}
+	i.SupportsAutoPairUpdating = false
+	i.SupportsRESTTickerBatching = false
+	i.Requester = request.New(i.Name, request.NewRateLimit(time.Second, itbitAuthRate), request.NewRateLimit(time.Second, itbitUnauthRate), common.NewHTTPClientWithTimeout(exchange.DefaultHTTPTimeout))
 }
 
 // Setup sets the exchange parameters from exchange config
@@ -59,6 +66,8 @@ func (i *ItBit) Setup(exch config.ExchangeConfig) {
 		i.Enabled = true
 		i.AuthenticatedAPISupport = exch.AuthenticatedAPISupport
 		i.SetAPIKeys(exch.APIKey, exch.APISecret, exch.ClientID, false)
+		i.SetHTTPClientTimeout(exch.HTTPTimeout)
+		i.SetHTTPClientUserAgent(exch.HTTPUserAgent)
 		i.RESTPollingDelay = exch.RESTPollingDelay
 		i.Verbose = exch.Verbose
 		i.Websocket = exch.Websocket
@@ -70,6 +79,10 @@ func (i *ItBit) Setup(exch config.ExchangeConfig) {
 			log.Fatal(err)
 		}
 		err = i.SetAssetTypes()
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = i.SetAutoPairDefaults()
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -90,8 +103,7 @@ func (i *ItBit) GetTicker(currencyPair string) (Ticker, error) {
 	var response Ticker
 	path := fmt.Sprintf("%s/%s/%s/%s", itbitAPIURL, itbitMarkets, currencyPair, itbitTicker)
 
-	return response,
-		common.SendHTTPGetRequest(path, true, i.Verbose, &response)
+	return response, i.SendHTTPRequest(path, &response)
 }
 
 // GetOrderbook returns full order book for the specified market.
@@ -100,8 +112,7 @@ func (i *ItBit) GetOrderbook(currencyPair string) (OrderbookResponse, error) {
 	response := OrderbookResponse{}
 	path := fmt.Sprintf("%s/%s/%s/%s", itbitAPIURL, itbitMarkets, currencyPair, itbitOrderbook)
 
-	return response,
-		common.SendHTTPGetRequest(path, true, i.Verbose, &response)
+	return response, i.SendHTTPRequest(path, &response)
 }
 
 // GetTradeHistory returns recent trades for a specified market.
@@ -113,8 +124,7 @@ func (i *ItBit) GetTradeHistory(currencyPair, timestamp string) (Trades, error) 
 	req := "trades?since=" + timestamp
 	path := fmt.Sprintf("%s/%s/%s/%s", itbitAPIURL, itbitMarkets, currencyPair, req)
 
-	return response,
-		common.SendHTTPGetRequest(path, true, i.Verbose, &response)
+	return response, i.SendHTTPRequest(path, &response)
 }
 
 // GetWallets returns information about all wallets associated with the account.
@@ -137,8 +147,14 @@ func (i *ItBit) CreateWallet(walletName string) (Wallet, error) {
 	params["userId"] = i.ClientID
 	params["name"] = walletName
 
-	return resp,
-		i.SendAuthenticatedHTTPRequest("POST", "/"+itbitWallets, params, &resp)
+	err := i.SendAuthenticatedHTTPRequest("POST", "/"+itbitWallets, params, &resp)
+	if err != nil {
+		return resp, err
+	}
+	if resp.Description != "" {
+		return resp, errors.New(resp.Description)
+	}
+	return resp, nil
 }
 
 // GetWallet returns wallet information by walletID
@@ -146,7 +162,14 @@ func (i *ItBit) GetWallet(walletID string) (Wallet, error) {
 	resp := Wallet{}
 	path := fmt.Sprintf("/%s/%s", itbitWallets, walletID)
 
-	return resp, i.SendAuthenticatedHTTPRequest("GET", path, nil, &resp)
+	err := i.SendAuthenticatedHTTPRequest("GET", path, nil, &resp)
+	if err != nil {
+		return resp, err
+	}
+	if resp.Description != "" {
+		return resp, errors.New(resp.Description)
+	}
+	return resp, nil
 }
 
 // GetWalletBalance returns balance information for a specific currency in a
@@ -155,7 +178,14 @@ func (i *ItBit) GetWalletBalance(walletID, currency string) (Balance, error) {
 	resp := Balance{}
 	path := fmt.Sprintf("/%s/%s/%s/%s", itbitWallets, walletID, itbitBalances, currency)
 
-	return resp, i.SendAuthenticatedHTTPRequest("GET", path, nil, &resp)
+	err := i.SendAuthenticatedHTTPRequest("GET", path, nil, &resp)
+	if err != nil {
+		return resp, err
+	}
+	if resp.Description != "" {
+		return resp, errors.New(resp.Description)
+	}
+	return resp, nil
 }
 
 // GetWalletTrades returns all trades for a specified wallet.
@@ -164,7 +194,14 @@ func (i *ItBit) GetWalletTrades(walletID string, params url.Values) (Records, er
 	url := fmt.Sprintf("/%s/%s/%s", itbitWallets, walletID, itbitTrades)
 	path := common.EncodeURLValues(url, params)
 
-	return resp, i.SendAuthenticatedHTTPRequest("GET", path, nil, &resp)
+	err := i.SendAuthenticatedHTTPRequest("GET", path, nil, &resp)
+	if err != nil {
+		return resp, err
+	}
+	if resp.Description != "" {
+		return resp, errors.New(resp.Description)
+	}
+	return resp, nil
 }
 
 // GetFundingHistory returns all funding history for a specified wallet.
@@ -173,7 +210,14 @@ func (i *ItBit) GetFundingHistory(walletID string, params url.Values) (FundingRe
 	url := fmt.Sprintf("/%s/%s/%s", itbitWallets, walletID, itbitFundingHistory)
 	path := common.EncodeURLValues(url, params)
 
-	return resp, i.SendAuthenticatedHTTPRequest("GET", path, nil, &resp)
+	err := i.SendAuthenticatedHTTPRequest("GET", path, nil, &resp)
+	if err != nil {
+		return resp, err
+	}
+	if resp.Description != "" {
+		return resp, errors.New(resp.Description)
+	}
+	return resp, nil
 }
 
 // PlaceOrder places a new order
@@ -193,7 +237,14 @@ func (i *ItBit) PlaceOrder(walletID, side, orderType, currency string, amount, p
 		params["clientOrderIdentifier"] = clientRef
 	}
 
-	return resp, i.SendAuthenticatedHTTPRequest("POST", path, params, &resp)
+	err := i.SendAuthenticatedHTTPRequest("POST", path, params, &resp)
+	if err != nil {
+		return resp, err
+	}
+	if resp.Description != "" {
+		return resp, errors.New(resp.Description)
+	}
+	return resp, nil
 }
 
 // GetOrder returns an order by id.
@@ -202,7 +253,14 @@ func (i *ItBit) GetOrder(walletID string, params url.Values) (Order, error) {
 	url := fmt.Sprintf("/%s/%s/%s", itbitWallets, walletID, itbitOrders)
 	path := common.EncodeURLValues(url, params)
 
-	return resp, i.SendAuthenticatedHTTPRequest("GET", path, nil, &resp)
+	err := i.SendAuthenticatedHTTPRequest("GET", path, nil, &resp)
+	if err != nil {
+		return resp, err
+	}
+	if resp.Description != "" {
+		return resp, errors.New(resp.Description)
+	}
+	return resp, nil
 }
 
 // CancelOrder cancels and open order. *This is not a guarantee that the order
@@ -220,7 +278,14 @@ func (i *ItBit) GetDepositAddress(walletID, currency string) (CryptoCurrencyDepo
 	params := make(map[string]interface{})
 	params["currency"] = currency
 
-	return resp, i.SendAuthenticatedHTTPRequest("POST", path, params, &resp)
+	err := i.SendAuthenticatedHTTPRequest("POST", path, params, &resp)
+	if err != nil {
+		return resp, err
+	}
+	if resp.Description != "" {
+		return resp, errors.New(resp.Description)
+	}
+	return resp, nil
 }
 
 // WalletTransfer transfers funds between wallets.
@@ -234,7 +299,19 @@ func (i *ItBit) WalletTransfer(walletID, sourceWallet, destWallet string, amount
 	params["amount"] = strconv.FormatFloat(amount, 'f', -1, 64)
 	params["currencyCode"] = currency
 
-	return resp, i.SendAuthenticatedHTTPRequest("POST", path, params, &resp)
+	err := i.SendAuthenticatedHTTPRequest("POST", path, params, &resp)
+	if err != nil {
+		return resp, err
+	}
+	if resp.Description != "" {
+		return resp, errors.New(resp.Description)
+	}
+	return resp, nil
+}
+
+// SendHTTPRequest sends an unauthenticated HTTP request
+func (i *ItBit) SendHTTPRequest(path string, result interface{}) error {
+	return i.SendPayload("GET", path, nil, nil, result, false, i.Verbose)
 }
 
 // SendAuthenticatedHTTPRequest sends an authenticated request to itBit
@@ -285,19 +362,5 @@ func (i *ItBit) SendAuthenticatedHTTPRequest(method string, path string, params 
 	headers["X-Auth-Nonce"] = nonce
 	headers["Content-Type"] = "application/json"
 
-	resp, err := common.SendHTTPRequest(method, url, headers, bytes.NewBuffer([]byte(PayloadJSON)))
-	if err != nil {
-		return err
-	}
-
-	if i.Verbose {
-		log.Printf("Received raw: \n%s\n", resp)
-	}
-
-	errCapture := GeneralReturn{}
-	if err := common.JSONDecode([]byte(resp), &errCapture); err == nil {
-		return errors.New(errCapture.Description)
-	}
-
-	return common.JSONDecode([]byte(resp), result)
+	return i.SendPayload(method, url, headers, bytes.NewBuffer([]byte(PayloadJSON)), result, true, i.Verbose)
 }

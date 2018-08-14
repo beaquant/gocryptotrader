@@ -12,6 +12,7 @@ import (
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/config"
 	exchange "github.com/thrasher-/gocryptotrader/exchanges"
+	"github.com/thrasher-/gocryptotrader/exchanges/request"
 	"github.com/thrasher-/gocryptotrader/exchanges/ticker"
 )
 
@@ -23,9 +24,9 @@ const (
 	// Public API
 	requestsPerSecondPublicAPI = 20
 
-	publicTicker            = "/public/ticker/"
-	publicOrderBook         = "/public/orderbook/"
-	publicRecentTransaction = "/public/recent_transactions/"
+	publicTicker             = "/public/ticker/"
+	publicOrderBook          = "/public/orderbook/"
+	publicTransactionHistory = "/public/transaction_history/"
 
 	// Private API
 	requestsPerSecondPrivateAPI = 10
@@ -44,6 +45,9 @@ const (
 	privateKRWWithdraw = "/trade/krw_withdrawal"
 	privateMarketBuy   = "/trade/market_buy"
 	privateMarketSell  = "/trade/market_sell"
+
+	bithumbAuthRate   = 10
+	bithumbUnauthRate = 20
 )
 
 // Bithumb is the overarching type across the Bithumb package
@@ -64,6 +68,9 @@ func (b *Bithumb) SetDefaults() {
 	b.ConfigCurrencyPairFormat.Uppercase = true
 	b.ConfigCurrencyPairFormat.Index = "KRW"
 	b.AssetTypes = []string{ticker.Spot}
+	b.SupportsAutoPairUpdating = true
+	b.SupportsRESTTickerBatching = true
+	b.Requester = request.New(b.Name, request.NewRateLimit(time.Second, bithumbAuthRate), request.NewRateLimit(time.Second, bithumbUnauthRate), common.NewHTTPClientWithTimeout(exchange.DefaultHTTPTimeout))
 }
 
 // Setup takes in the supplied exchange configuration details and sets params
@@ -74,6 +81,8 @@ func (b *Bithumb) Setup(exch config.ExchangeConfig) {
 		b.Enabled = true
 		b.AuthenticatedAPISupport = exch.AuthenticatedAPISupport
 		b.SetAPIKeys(exch.APIKey, exch.APISecret, "", false)
+		b.SetHTTPClientTimeout(exch.HTTPTimeout)
+		b.SetHTTPClientUserAgent(exch.HTTPUserAgent)
 		b.RESTPollingDelay = exch.RESTPollingDelay
 		b.Verbose = exch.Verbose
 		b.Websocket = exch.Websocket
@@ -88,7 +97,25 @@ func (b *Bithumb) Setup(exch config.ExchangeConfig) {
 		if err != nil {
 			log.Fatal(err)
 		}
+		err = b.SetAutoPairDefaults()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
+}
+
+// GetTradablePairs returns a list of tradable currencies
+func (b *Bithumb) GetTradablePairs() ([]string, error) {
+	result, err := b.GetAllTickers()
+	if err != nil {
+		return nil, err
+	}
+
+	var currencies []string
+	for x := range result {
+		currencies = append(currencies, x)
+	}
+	return currencies, nil
 }
 
 // GetTicker returns ticker information
@@ -98,7 +125,59 @@ func (b *Bithumb) GetTicker(symbol string) (Ticker, error) {
 	response := Ticker{}
 	path := fmt.Sprintf("%s%s%s", apiURL, publicTicker, common.StringToUpper(symbol))
 
-	return response, common.SendHTTPGetRequest(path, true, b.Verbose, &response)
+	err := b.SendHTTPRequest(path, &response)
+	if err != nil {
+		return response, err
+	}
+
+	if response.Status != noError {
+		return response, errors.New(response.Message)
+	}
+
+	return response, nil
+}
+
+// GetAllTickers returns all ticker information
+func (b *Bithumb) GetAllTickers() (map[string]Ticker, error) {
+	type Response struct {
+		ActionStatus
+		Data map[string]interface{}
+	}
+
+	response := Response{}
+	path := fmt.Sprintf("%s%s%s", apiURL, publicTicker, "all")
+
+	err := b.SendHTTPRequest(path, &response)
+	if err != nil {
+		return nil, err
+	}
+
+	if response.Status != noError {
+		return nil, errors.New(response.Message)
+	}
+
+	result := make(map[string]Ticker)
+	for k, v := range response.Data {
+		if k == "date" {
+			continue
+		}
+
+		data := v.(map[string]interface{})
+		var t Ticker
+		t.AveragePrice, _ = strconv.ParseFloat(data["average_price"].(string), 64)
+		t.BuyPrice, _ = strconv.ParseFloat(data["buy_price"].(string), 64)
+		t.ClosingPrice, _ = strconv.ParseFloat(data["closing_price"].(string), 64)
+		t.MaxPrice, _ = strconv.ParseFloat(data["max_price"].(string), 64)
+		t.MinPrice, _ = strconv.ParseFloat(data["min_price"].(string), 64)
+		t.OpeningPrice, _ = strconv.ParseFloat(data["opening_price"].(string), 64)
+		t.SellPrice, _ = strconv.ParseFloat(data["sell_price"].(string), 64)
+		t.UnitsTraded, _ = strconv.ParseFloat(data["units_traded"].(string), 64)
+		t.Volume1Day, _ = strconv.ParseFloat(data["volume_1day"].(string), 64)
+		t.Volume7Day, _ = strconv.ParseFloat(data["volume_7day"].(string), 64)
+		result[k] = t
+
+	}
+	return result, nil
 }
 
 // GetOrderBook returns current orderbook
@@ -108,17 +187,35 @@ func (b *Bithumb) GetOrderBook(symbol string) (Orderbook, error) {
 	response := Orderbook{}
 	path := fmt.Sprintf("%s%s%s", apiURL, publicOrderBook, common.StringToUpper(symbol))
 
-	return response, common.SendHTTPGetRequest(path, true, b.Verbose, &response)
+	err := b.SendHTTPRequest(path, &response)
+	if err != nil {
+		return response, err
+	}
+
+	if response.Status != noError {
+		return response, errors.New(response.Message)
+	}
+
+	return response, nil
 }
 
-// GetRecentTransactions returns recent transactions
+// GetTransactionHistory returns recent transactions
 //
 // symbol e.g. "btc"
-func (b *Bithumb) GetRecentTransactions(symbol string) (RecentTransactions, error) {
-	response := RecentTransactions{}
-	path := fmt.Sprintf("%s%s%s", apiURL, publicRecentTransaction, common.StringToUpper(symbol))
+func (b *Bithumb) GetTransactionHistory(symbol string) (TransactionHistory, error) {
+	response := TransactionHistory{}
+	path := fmt.Sprintf("%s%s%s", apiURL, publicTransactionHistory, common.StringToUpper(symbol))
 
-	return response, common.SendHTTPGetRequest(path, true, b.Verbose, &response)
+	err := b.SendHTTPRequest(path, &response)
+	if err != nil {
+		return response, err
+	}
+
+	if response.Status != noError {
+		return response, errors.New(response.Message)
+	}
+
+	return response, nil
 }
 
 // GetAccountInfo returns account information
@@ -419,6 +516,11 @@ func (b *Bithumb) MarketSellOrder(currency string, units float64) (MarketSell, e
 	return response, nil
 }
 
+// SendHTTPRequest sends an unauthenticated HTTP request
+func (b *Bithumb) SendHTTPRequest(path string, result interface{}) error {
+	return b.SendPayload("GET", path, nil, nil, result, false, b.Verbose)
+}
+
 // SendAuthenticatedHTTPRequest sends an authenticated HTTP request to bithumb
 func (b *Bithumb) SendAuthenticatedHTTPRequest(path string, params url.Values, result interface{}) error {
 	if !b.AuthenticatedAPISupport {
@@ -447,19 +549,5 @@ func (b *Bithumb) SendAuthenticatedHTTPRequest(path string, params url.Values, r
 	headers["Api-Nonce"] = b.Nonce.String()
 	headers["Content-Type"] = "application/x-www-form-urlencoded"
 
-	resp, err := common.SendHTTPRequest(
-		"POST", apiURL+path, headers, bytes.NewBufferString(payload),
-	)
-	if err != nil {
-		return err
-	}
-
-	if b.Verbose {
-		log.Printf("Received raw: \n%s\n", resp)
-	}
-
-	if err = common.JSONDecode([]byte(resp), &result); err != nil {
-		return errors.New("sendAuthenticatedHTTPRequest: Unable to JSON Unmarshal response." + err.Error())
-	}
-	return nil
+	return b.SendPayload("POST", apiURL+path, headers, bytes.NewBufferString(payload), result, true, b.Verbose)
 }

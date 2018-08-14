@@ -20,7 +20,20 @@ Join our slack to discuss all things related to GoCryptoTrader! [GoCryptoTrader 
 
 ## Current Features for common
 
-+ This package collates basic broad functions that are used throughout this codebase.
+#### This package collates basic broad functions that are used throughout this codebase.
+
++ Coding example
+
+```go
+import "github.com/thrasher-/gocryptotrader/common"
+
+testString := "aAaAa"
+
+upper := common.StringToUpper(testString)
+
+// upper == "AAAAA"
+```
+
 
 ### Please click GoDocs chevron above to view current GoDoc information for this package
 
@@ -37,7 +50,7 @@ When submitting a PR, please abide by our coding guidelines:
 
 ## Donations
 
-<img src="https://github.com/thrasher-/gocryptotrader/blob/master/web/src/assets/early-dumb-donate.png?raw=true" hspace="70">
+<img src="https://github.com/thrasher-/gocryptotrader/blob/master/web/src/assets/donate.png?raw=true" hspace="70">
 
 If this framework helped you in any way, or you would like to support the developers working on it, please donate Bitcoin to:
 

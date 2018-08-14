@@ -3,6 +3,7 @@ package huobi
 import (
 	"errors"
 	"log"
+	"sync"
 
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/config"
@@ -13,8 +14,12 @@ import (
 )
 
 // Start starts the HUOBI go routine
-func (h *HUOBI) Start() {
-	go h.Run()
+func (h *HUOBI) Start(wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		h.Run()
+		wg.Done()
+	}()
 }
 
 // Run implements the HUOBI wrapper
@@ -65,12 +70,12 @@ func (h *HUOBI) Run() {
 			enabledPairs := []string{"btc-usdt"}
 			log.Println("WARNING: Available and enabled pairs for Huobi reset due to config upgrade, please enable the ones you would like again")
 
-			err = h.UpdateEnabledCurrencies(enabledPairs, true)
+			err = h.UpdateCurrencies(enabledPairs, true, true)
 			if err != nil {
 				log.Printf("%s Failed to update enabled currencies.\n", h.GetName())
 			}
 		}
-		err = h.UpdateAvailableCurrencies(currencies, forceUpgrade)
+		err = h.UpdateCurrencies(currencies, false, forceUpgrade)
 		if err != nil {
 			log.Printf("%s Failed to update available currencies.\n", h.GetName())
 		}
@@ -117,7 +122,10 @@ func (h *HUOBI) GetOrderbookEx(p pair.CurrencyPair, assetType string) (orderbook
 // UpdateOrderbook updates and returns the orderbook for a currency pair
 func (h *HUOBI) UpdateOrderbook(p pair.CurrencyPair, assetType string) (orderbook.Base, error) {
 	var orderBook orderbook.Base
-	orderbookNew, err := h.GetDepth(exchange.FormatExchangeCurrency(h.Name, p).String(), "step1")
+	orderbookNew, err := h.GetDepth(OrderBookDataRequestParams{
+		Symbol: exchange.FormatExchangeCurrency(h.Name, p).String(),
+		Type:   OrderBookDataRequestParamsTypeStep1,
+	})
 	if err != nil {
 		return orderBook, err
 	}
@@ -144,9 +152,66 @@ func (h *HUOBI) GetExchangeAccountInfo() (exchange.AccountInfo, error) {
 	return response, nil
 }
 
+// GetExchangeFundTransferHistory returns funding history, deposits and
+// withdrawals
+func (h *HUOBI) GetExchangeFundTransferHistory() ([]exchange.FundHistory, error) {
+	var fundHistory []exchange.FundHistory
+	return fundHistory, errors.New("not supported on exchange")
+}
+
 // GetExchangeHistory returns historic trade data since exchange opening.
 func (h *HUOBI) GetExchangeHistory(p pair.CurrencyPair, assetType string) ([]exchange.TradeHistory, error) {
 	var resp []exchange.TradeHistory
 
 	return resp, errors.New("trade history not yet implemented")
+}
+
+// SubmitExchangeOrder submits a new order
+func (h *HUOBI) SubmitExchangeOrder(p pair.CurrencyPair, side exchange.OrderSide, orderType exchange.OrderType, amount, price float64, clientID string) (int64, error) {
+	return 0, errors.New("not yet implemented")
+}
+
+// ModifyExchangeOrder will allow of changing orderbook placement and limit to
+// market conversion
+func (h *HUOBI) ModifyExchangeOrder(orderID int64, action exchange.ModifyOrder) (int64, error) {
+	return 0, errors.New("not yet implemented")
+}
+
+// CancelExchangeOrder cancels an order by its corresponding ID number
+func (h *HUOBI) CancelExchangeOrder(orderID int64) error {
+	return errors.New("not yet implemented")
+}
+
+// CancelAllExchangeOrders cancels all orders associated with a currency pair
+func (h *HUOBI) CancelAllExchangeOrders() error {
+	return errors.New("not yet implemented")
+}
+
+// GetExchangeOrderInfo returns information on a current open order
+func (h *HUOBI) GetExchangeOrderInfo(orderID int64) (exchange.OrderDetail, error) {
+	var orderDetail exchange.OrderDetail
+	return orderDetail, errors.New("not yet implemented")
+}
+
+// GetExchangeDepositAddress returns a deposit address for a specified currency
+func (h *HUOBI) GetExchangeDepositAddress(cryptocurrency pair.CurrencyItem) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawCryptoExchangeFunds returns a withdrawal ID when a withdrawal is
+// submitted
+func (h *HUOBI) WithdrawCryptoExchangeFunds(address string, cryptocurrency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawFiatExchangeFunds returns a withdrawal ID when a
+// withdrawal is submitted
+func (h *HUOBI) WithdrawFiatExchangeFunds(currency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawFiatExchangeFundsToInternationalBank returns a withdrawal ID when a
+// withdrawal is submitted
+func (h *HUOBI) WithdrawFiatExchangeFundsToInternationalBank(currency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
 }

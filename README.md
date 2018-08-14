@@ -20,20 +20,23 @@ Join our slack to discuss all things related to GoCryptoTrader! [GoCryptoTrader 
 |----------|------|-----------|-----|
 | Alphapoint | Yes  | Yes        | NA  |
 | ANXPRO | Yes  | No        | NA  |
-| Binance| Yes  | No        | NA  |
+| Binance| Yes  | Yes        | NA  |
 | Bitfinex | Yes  | Yes        | NA  |
 | Bitflyer | Yes  | No      | NA  |
 | Bithumb | Yes  | NA       | NA  |
+| BitMEX | Yes | No | NA |
 | Bitstamp | Yes  | Yes       | No  |
 | Bittrex | Yes | No | NA |
 | BTCC | Yes  | Yes     | No  |
 | BTCMarkets | Yes | No       | NA  |
 | COINUT | Yes | No | NA |
 | Exmo | Yes | NA | NA |
-| GDAX(Coinbase) | Yes | Yes | No|
+| CoinbasePro | Yes | Yes | No|
+| GateIO | Yes | No | NA |
 | Gemini | Yes | No | No |
 | HitBTC | Yes | Yes | No |
-| Huobi.Pro | Yes | No |No |
+| Huobi.Pro | Yes | No | NA |
+| Huobi.Hadax | Yes | No | NA |
 | ItBit | Yes | NA | No |
 | Kraken | Yes | NA | NA |
 | LakeBTC | Yes | No | NA |
@@ -45,6 +48,7 @@ Join our slack to discuss all things related to GoCryptoTrader! [GoCryptoTrader 
 | Poloniex | Yes | Yes | NA |
 | WEX     | Yes  | NA        | NA  |
 | Yobit | Yes | NA | NA |
+| ZB.COM | Yes | No | NA |
 
 We are aiming to support the top 20 highest volume exchanges based off the [CoinMarketCap exchange data](https://coinmarketcap.com/exchanges/volume/24-hour/).
 
@@ -53,13 +57,15 @@ We are aiming to support the top 20 highest volume exchanges based off the [Coin
 ## Current Features
 
 + Support for all Exchange fiat and digital currencies, with the ability to individually toggle them on/off.
-+ AES encrypted config file.
++ AES256 encrypted config file.
 + REST API support for all exchanges.
 + Websocket support for applicable exchanges.
 + Ability to turn off/on certain exchanges.
 + Ability to adjust manual polling timer for exchanges.
-+ SMS notification support via SMS Gateway.
-+ Packages for handling currency pairs, ticker/orderbook fetching and currency conversion.
++ Communication packages (Slack, SMS via SMSGlobal, Telegram and SMTP)
++ HTTP rate limiter package.
++ Forex currency converter packages (CurrencyConverterAPI, CurrencyLayer, Fixer.io, OpenExchangeRates)
++ Packages for handling currency pairs, tickers and orderbooks.
 + Portfolio management tool; fetches balances from supported exchanges and allows for custom address tracking.
 + Basic event trigger system.
 + WebGUI.
@@ -126,7 +132,7 @@ copy %GOPATH%\src\github.com\thrasher-\gocryptotrader\config_example.json %GOPAT
 
 ## Donations
 
-<img src="https://github.com/thrasher-/gocryptotrader/blob/master/web/src/assets/early-dumb-donate.png?raw=true" hspace="70">
+<img src="https://github.com/thrasher-/gocryptotrader/blob/master/web/src/assets/donate.png?raw=true" hspace="70">
 
 If this framework helped you in any way, or you would like to support the developers working on it, please donate Bitcoin to:
 
@@ -142,26 +148,31 @@ Binaries will be published once the codebase reaches a stable condition.
 
 |User|Github|Contribution Amount|
 |--|--|--|
-| thrasher- | https://github.com/thrasher- | 417 |
-| shazbert | https://github.com/shazbert | 125 |
-| gloriousCode | https://github.com/gloriousCode | 113 |
+| thrasher- | https://github.com/thrasher- | 456 |
+| shazbert | https://github.com/shazbert | 142 |
+| gloriousCode | https://github.com/gloriousCode | 122 |
 | 140am | https://github.com/140am | 8 |
-| faddat | https://github.com/faddat | 4 |
+| ermalguni | https://github.com/ermalguni | 4 |
+| marcofranssen | https://github.com/marcofranssen | 4 |
+| Betazoid | https://github.com/Betazoid | 4 |
 | crackcomm | https://github.com/crackcomm | 3 |
 | bretep | https://github.com/bretep | 2 |
 | gam-phon | https://github.com/gam-phon | 2 |
 | cornelk | https://github.com/cornelk | 2 |
 | if1live | https://github.com/if1live | 2 |
 | daniel-cohen | https://github.com/daniel-cohen | 1 |
+| frankzougc | https://github.com/frankzougc | 1 |
 | starit | https://github.com/starit | 1 |
 | Jimexist | https://github.com/Jimexist | 1 |
+| lookfirst | https://github.com/lookfirst | 1 |
+| zeldrinn | https://github.com/zeldrinn | 1 |
 | mattkanwisher | https://github.com/mattkanwisher | 1 |
 | mKurrels | https://github.com/mKurrels | 1 |
 | m1kola | https://github.com/m1kola | 1 |
+| cavapoo2 | https://github.com/cavapoo2 | 1 |
 | tongxiaofeng | https://github.com/tongxiaofeng | 1 |
 | idealhack | https://github.com/idealhack | 1 |
+| vyloy | https://github.com/vyloy | 1 |
 | askew- | https://github.com/askew- | 1 |
+| whilei | https://github.com/whilei | 1 |
 | snipesjr | https://github.com/snipesjr | 1 |
-
-
-

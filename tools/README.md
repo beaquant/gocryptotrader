@@ -28,18 +28,7 @@ This folder contains an assortment of tools.
 + Exchange deployment
 + Websocket client
 
-
-Example Run for documentation generation - flags -v Verbose & -r Replace files
-```sh
-cd documentation/
-go run documentation.go -v
-```
-OR for full replacement.
-
-```sh
-cd documentation/
-go run documentation.go -v -r
-```
+Please see individual tool's README file
 
 ## Contribution
 
@@ -54,7 +43,7 @@ When submitting a PR, please abide by our coding guidelines:
 
 ## Donations
 
-<img src="https://github.com/thrasher-/gocryptotrader/blob/master/web/src/assets/early-dumb-donate.png?raw=true" hspace="70">
+<img src="https://github.com/thrasher-/gocryptotrader/blob/master/web/src/assets/donate.png?raw=true" hspace="70">
 
 If this framework helped you in any way, or you would like to support the developers working on it, please donate Bitcoin to:
 

@@ -1,11 +1,11 @@
 package liqui
 
 import (
-	"log"
 	"net/url"
 	"testing"
 
 	"github.com/thrasher-/gocryptotrader/config"
+	"github.com/thrasher-/gocryptotrader/currency/pair"
 )
 
 var l Liqui
@@ -68,11 +68,10 @@ func TestGetTicker(t *testing.T) {
 
 func TestGetDepth(t *testing.T) {
 	t.Parallel()
-	v, err := l.GetDepth("eth_btc")
+	_, err := l.GetDepth("eth_btc")
 	if err != nil {
 		t.Error("Test Failed - liqui GetDepth() error", err)
 	}
-	log.Println(v)
 }
 
 func TestGetTrades(t *testing.T) {
@@ -119,5 +118,21 @@ func TestAuthRequests(t *testing.T) {
 		if err == nil {
 			t.Error("Test Failed - liqui WithdrawCoins() error", err)
 		}
+	}
+}
+
+func TestUpdateTicker(t *testing.T) {
+	p := pair.NewCurrencyPairDelimiter("ETH_BTC", "_")
+	_, err := l.UpdateTicker(p, "SPOT")
+	if err != nil {
+		t.Error("Test Failed - liqui UpdateTicker() error", err)
+	}
+}
+
+func TestUpdateOrderbook(t *testing.T) {
+	p := pair.NewCurrencyPairDelimiter("ETH_BTC", "_")
+	_, err := l.UpdateOrderbook(p, "SPOT")
+	if err != nil {
+		t.Error("Test Failed - liqui UpdateOrderbook() error", err)
 	}
 }

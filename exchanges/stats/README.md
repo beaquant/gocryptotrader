@@ -20,7 +20,11 @@ Join our slack to discuss all things related to GoCryptoTrader! [GoCryptoTrader 
 
 ## Current Features for stats
 
-+ This package services the exchanges package.
++ This stats package services the exchanges package by providing stats on
+enabled exchanges i.e.
+  - Sort by largest volume
+  - Sort by best price for currency
+  - Others will be added soon
 
 ### Please click GoDocs chevron above to view current GoDoc information for this package
 
@@ -37,7 +41,7 @@ When submitting a PR, please abide by our coding guidelines:
 
 ## Donations
 
-<img src="https://github.com/thrasher-/gocryptotrader/blob/master/web/src/assets/early-dumb-donate.png?raw=true" hspace="70">
+<img src="https://github.com/thrasher-/gocryptotrader/blob/master/web/src/assets/donate.png?raw=true" hspace="70">
 
 If this framework helped you in any way, or you would like to support the developers working on it, please donate Bitcoin to:
 

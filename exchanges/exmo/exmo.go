@@ -1,7 +1,6 @@
 package exmo
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -13,6 +12,7 @@ import (
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/config"
 	exchange "github.com/thrasher-/gocryptotrader/exchanges"
+	"github.com/thrasher-/gocryptotrader/exchanges/request"
 	"github.com/thrasher-/gocryptotrader/exchanges/ticker"
 )
 
@@ -39,14 +39,16 @@ const (
 	exmoExcodeCreate    = "excode_create"
 	exmoExcodeLoad      = "excode_load"
 	exmoWalletHistory   = "wallet_history"
+
+	// Rate limit: 180 per/minute
+	exmoAuthRate   = 180
+	exmoUnauthRate = 180
 )
 
 // EXMO exchange struct
 type EXMO struct {
 	exchange.Base
 }
-
-// Rate limit: 180 per/minute
 
 // SetDefaults sets the basic defaults for exmo
 func (e *EXMO) SetDefaults() {
@@ -61,6 +63,9 @@ func (e *EXMO) SetDefaults() {
 	e.ConfigCurrencyPairFormat.Delimiter = "_"
 	e.ConfigCurrencyPairFormat.Uppercase = true
 	e.AssetTypes = []string{ticker.Spot}
+	e.SupportsAutoPairUpdating = true
+	e.SupportsRESTTickerBatching = true
+	e.Requester = request.New(e.Name, request.NewRateLimit(time.Minute, exmoAuthRate), request.NewRateLimit(time.Minute, exmoUnauthRate), common.NewHTTPClientWithTimeout(exchange.DefaultHTTPTimeout))
 }
 
 // Setup takes in the supplied exchange configuration details and sets params
@@ -71,6 +76,8 @@ func (e *EXMO) Setup(exch config.ExchangeConfig) {
 		e.Enabled = true
 		e.AuthenticatedAPISupport = exch.AuthenticatedAPISupport
 		e.SetAPIKeys(exch.APIKey, exch.APISecret, "", false)
+		e.SetHTTPClientTimeout(exch.HTTPTimeout)
+		e.SetHTTPClientUserAgent(exch.HTTPUserAgent)
 		e.RESTPollingDelay = exch.RESTPollingDelay
 		e.Verbose = exch.Verbose
 		e.Websocket = exch.Websocket
@@ -85,6 +92,10 @@ func (e *EXMO) Setup(exch config.ExchangeConfig) {
 		if err != nil {
 			log.Fatal(err)
 		}
+		err = e.SetAutoPairDefaults()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
@@ -94,8 +105,8 @@ func (e *EXMO) GetTrades(symbol string) (map[string][]Trades, error) {
 	v.Set("pair", symbol)
 	result := make(map[string][]Trades)
 	url := fmt.Sprintf("%s/v%s/%s", exmoAPIURL, exmoAPIVersion, exmoTrades)
-	err := common.SendHTTPGetRequest(common.EncodeURLValues(url, v), true, e.Verbose, &result)
-	return result, err
+
+	return result, e.SendHTTPRequest(common.EncodeURLValues(url, v), &result)
 }
 
 // GetOrderbook returns the orderbook for a symbol or symbols
@@ -104,8 +115,8 @@ func (e *EXMO) GetOrderbook(symbol string) (map[string]Orderbook, error) {
 	v.Set("pair", symbol)
 	result := make(map[string]Orderbook)
 	url := fmt.Sprintf("%s/v%s/%s", exmoAPIURL, exmoAPIVersion, exmoOrderbook)
-	err := common.SendHTTPGetRequest(common.EncodeURLValues(url, v), true, e.Verbose, &result)
-	return result, err
+
+	return result, e.SendHTTPRequest(common.EncodeURLValues(url, v), &result)
 }
 
 // GetTicker returns the ticker for a symbol or symbols
@@ -114,24 +125,24 @@ func (e *EXMO) GetTicker(symbol string) (map[string]Ticker, error) {
 	v.Set("pair", symbol)
 	result := make(map[string]Ticker)
 	url := fmt.Sprintf("%s/v%s/%s", exmoAPIURL, exmoAPIVersion, exmoTicker)
-	err := common.SendHTTPGetRequest(common.EncodeURLValues(url, v), true, e.Verbose, &result)
-	return result, err
+
+	return result, e.SendHTTPRequest(common.EncodeURLValues(url, v), &result)
 }
 
 // GetPairSettings returns the pair settings for a symbol or symbols
 func (e *EXMO) GetPairSettings() (map[string]PairSettings, error) {
 	result := make(map[string]PairSettings)
 	url := fmt.Sprintf("%s/v%s/%s", exmoAPIURL, exmoAPIVersion, exmoPairSettings)
-	err := common.SendHTTPGetRequest(url, true, e.Verbose, &result)
-	return result, err
+
+	return result, e.SendHTTPRequest(url, &result)
 }
 
 // GetCurrency returns a list of currencies
 func (e *EXMO) GetCurrency() ([]string, error) {
 	result := []string{}
 	url := fmt.Sprintf("%s/v%s/%s", exmoAPIURL, exmoAPIVersion, exmoCurrency)
-	err := common.SendHTTPGetRequest(url, true, e.Verbose, &result)
-	return result, err
+
+	return result, e.SendHTTPRequest(url, &result)
 }
 
 // GetUserInfo returns the user info
@@ -306,6 +317,11 @@ func (e *EXMO) GetWalletHistory(date int64) (WalletHistory, error) {
 	return result, err
 }
 
+// SendHTTPRequest sends an unauthenticated HTTP request
+func (e *EXMO) SendHTTPRequest(path string, result interface{}) error {
+	return e.SendPayload("GET", path, nil, nil, result, false, e.Verbose)
+}
+
 // SendAuthenticatedHTTPRequest sends an authenticated HTTP request
 func (e *EXMO) SendAuthenticatedHTTPRequest(method, endpoint string, vals url.Values, result interface{}) error {
 	if !e.AuthenticatedAPISupport {
@@ -332,28 +348,6 @@ func (e *EXMO) SendAuthenticatedHTTPRequest(method, endpoint string, vals url.Va
 	headers["Content-Type"] = "application/x-www-form-urlencoded"
 
 	path := fmt.Sprintf("%s/v%s/%s", exmoAPIURL, exmoAPIVersion, endpoint)
-	resp, err := common.SendHTTPRequest(method, path, headers, strings.NewReader(payload))
-	if err != nil {
-		return err
-	}
 
-	if e.Verbose {
-		log.Printf("Received raw: \n%s\n", resp)
-	}
-
-	var authResp AuthResponse
-	err = common.JSONDecode([]byte(resp), &authResp)
-	if err != nil {
-		return errors.New("unable to JSON Unmarshal auth response")
-	}
-
-	if !authResp.Result && authResp.Error != "" {
-		return fmt.Errorf("auth error: %s", authResp.Error)
-	}
-
-	err = common.JSONDecode([]byte(resp), &result)
-	if err != nil {
-		return errors.New("unable to JSON Unmarshal response")
-	}
-	return nil
+	return e.SendPayload(method, path, headers, strings.NewReader(payload), result, true, e.Verbose)
 }

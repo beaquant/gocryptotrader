@@ -21,7 +21,7 @@ func SetupTest(t *testing.T) {
 	if CheckExchangeExists("Bitfinex") {
 		return
 	}
-	err := LoadExchange("Bitfinex")
+	err := LoadExchange("Bitfinex", false, nil)
 	if err != nil {
 		t.Errorf("Test failed. SetupTest: Failed to load exchange: %s", err)
 	}
@@ -47,7 +47,7 @@ func TestCheckExchangeExists(t *testing.T) {
 	}
 
 	if CheckExchangeExists("Asdsad") {
-		t.Errorf("Test failed. TestGetExchangeExists: Non-existant exchange found")
+		t.Errorf("Test failed. TestGetExchangeExists: Non-existent exchange found")
 	}
 
 	CleanupTest(t)
@@ -77,7 +77,7 @@ func TestGetExchangeByName(t *testing.T) {
 
 	exch = GetExchangeByName("Asdasd")
 	if exch != nil {
-		t.Errorf("Test failed. TestGetExchangeByName: Non-existant exchange found")
+		t.Errorf("Test failed. TestGetExchangeByName: Non-existent exchange found")
 	}
 
 	CleanupTest(t)

@@ -71,6 +71,33 @@ func TestIsValidCryptoAddress(t *testing.T) {
 	}
 }
 
+func TestGetRandomSalt(t *testing.T) {
+	t.Parallel()
+
+	_, err := GetRandomSalt(nil, -1)
+	if err == nil {
+		t.Fatal("Test failed. Expected err on negative salt length")
+	}
+
+	salt, err := GetRandomSalt(nil, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(salt) != 10 {
+		t.Fatal("Test failed. Expected salt of len=10")
+	}
+
+	salt, err = GetRandomSalt([]byte("RAWR"), 12)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(salt) != 16 {
+		t.Fatal("Test failed. Expected salt of len=16")
+	}
+}
+
 func TestGetMD5(t *testing.T) {
 	t.Parallel()
 	var originalString = []byte("I am testing the MD5 function in common!")
@@ -275,6 +302,26 @@ func TestStringDataCompare(t *testing.T) {
 			expectedOutput, actualResult)
 	}
 	actualResult = StringDataCompare(originalHaystack, anotherNeedle)
+	if actualResult != expectedOutputTwo {
+		t.Errorf("Test failed. Expected '%v'. Actual '%v'",
+			expectedOutput, actualResult)
+	}
+}
+
+func TestStringDataCompareUpper(t *testing.T) {
+	t.Parallel()
+	originalHaystack := []string{"hello", "WoRld", "USDT", "Contains", "string"}
+	originalNeedle := "WoRld"
+	anotherNeedle := "WoRldD"
+	expectedOutput := true
+	expectedOutputTwo := false
+	actualResult := StringDataCompareUpper(originalHaystack, originalNeedle)
+	if actualResult != expectedOutput {
+		t.Errorf("Test failed. Expected '%v'. Actual '%v'",
+			expectedOutput, actualResult)
+	}
+
+	actualResult = StringDataCompareUpper(originalHaystack, anotherNeedle)
 	if actualResult != expectedOutputTwo {
 		t.Errorf("Test failed. Expected '%v'. Actual '%v'",
 			expectedOutput, actualResult)
@@ -691,9 +738,9 @@ func TestGetURIPath(t *testing.T) {
 	t.Parallel()
 	// mapping of input vs expected result
 	testTable := map[string]string{
-		"https://api.gdax.com/accounts":           "/accounts",
-		"https://api.gdax.com/accounts?a=1&b=2":   "/accounts?a=1&b=2",
-		"http://www.google.com/accounts?!@#$%;^^": "",
+		"https://api.pro.coinbase.com/accounts":         "/accounts",
+		"https://api.pro.coinbase.com/accounts?a=1&b=2": "/accounts?a=1&b=2",
+		"http://www.google.com/accounts?!@#$%;^^":       "",
 	}
 	for testInput, expectedOutput := range testTable {
 		actualOutput := GetURIPath(testInput)

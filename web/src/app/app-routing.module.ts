@@ -1,5 +1,4 @@
 import { HomeComponent } from './pages/home/home.component';
-import { SettingsComponent } from './pages/settings/settings.component';
 import { AboutComponent } from './pages/about/about.component';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
 import { WalletComponent } from './pages/wallet/wallet.component';
@@ -8,6 +7,9 @@ import { HistoryComponent } from './pages/history/history.component';
 import { TradingComponent } from './pages/trading/trading.component';
 import { ExchangeGridComponent } from './pages/exchange-grid/exchange-grid.component';
 import { CurrencyListComponent } from './pages/currency-list/currency-list.component';
+
+// Settings
+import { SettingsComponent } from './pages/settings/settings.component';
 
 import { NgModule } from '@angular/core';
 import { Routes, RouterModule } from '@angular/router';
@@ -18,16 +20,12 @@ const routes: Routes = [
         component: HomeComponent
     },
     {
-        path:'about',
+        path: 'about',
         component: AboutComponent
-    },    
-    {
-        path:'dashboard',
-        component: DashboardComponent
     },
     {
-        path: 'settings',
-        component: SettingsComponent
+        path: 'dashboard',
+        component: DashboardComponent
     },
     {
         path: 'wallet',
@@ -53,8 +51,12 @@ const routes: Routes = [
     {
         path: 'currency-list',
         component: CurrencyListComponent
-    }
-
+    },
+    // Settings
+    {
+        path: 'settings',
+        component: SettingsComponent
+    },
 ];
 
 @NgModule({

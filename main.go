@@ -10,44 +10,50 @@ import (
 	"runtime"
 	"strconv"
 	"syscall"
-	"time"
 
 	"github.com/thrasher-/gocryptotrader/common"
+	"github.com/thrasher-/gocryptotrader/communications"
 	"github.com/thrasher-/gocryptotrader/config"
 	"github.com/thrasher-/gocryptotrader/currency"
+	"github.com/thrasher-/gocryptotrader/currency/forexprovider"
 	"github.com/thrasher-/gocryptotrader/exchanges"
 	"github.com/thrasher-/gocryptotrader/portfolio"
-	"github.com/thrasher-/gocryptotrader/smsglobal"
 )
 
 // Bot contains configuration, portfolio, exchange & ticker data and is the
 // overarching type across this code base.
 type Bot struct {
 	config     *config.Config
-	smsglobal  *smsglobal.Base
 	portfolio  *portfolio.Base
 	exchanges  []exchange.IBotExchange
+	comms      *communications.Communications
 	shutdown   chan bool
 	dryRun     bool
 	configFile string
 }
 
 const banner = `
-   ______        ______                     __        ______                  __           
+   ______        ______                     __        ______                  __
   / ____/____   / ____/_____ __  __ ____   / /_ ____ /_  __/_____ ______ ____/ /___   _____
  / / __ / __ \ / /    / ___// / / // __ \ / __// __ \ / /  / ___// __  // __  // _ \ / ___/
-/ /_/ // /_/ // /___ / /   / /_/ // /_/ // /_ / /_/ // /  / /   / /_/ // /_/ //  __// /    
-\____/ \____/ \____//_/    \__, // .___/ \__/ \____//_/  /_/    \__,_/ \__,_/ \___//_/     
-                          /____//_/                                                        
+/ /_/ // /_/ // /___ / /   / /_/ // /_/ // /_ / /_/ // /  / /   / /_/ // /_/ //  __// /
+\____/ \____/ \____//_/    \__, // .___/ \__/ \____//_/  /_/    \__,_/ \__,_/ \___//_/
+                          /____//_/
 `
 
 var bot Bot
 
 func main() {
+	bot.shutdown = make(chan bool)
 	HandleInterrupt()
 
+	defaultPath, err := config.GetFilePath("")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	//Handle flags
-	flag.StringVar(&bot.configFile, "config", config.GetFilePath(""), "config file to load")
+	flag.StringVar(&bot.configFile, "config", defaultPath, "config file to load")
 	dryrun := flag.Bool("dryrun", false, "dry runs bot, doesn't save config file")
 	version := flag.Bool("version", false, "retrieves current GoCryptoTrader version")
 	flag.Parse()
@@ -66,66 +72,51 @@ func main() {
 	fmt.Println(BuildVersion(false))
 	log.Printf("Loading config file %s..\n", bot.configFile)
 
-	err := bot.config.LoadConfig(bot.configFile)
+	err = bot.config.LoadConfig(bot.configFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to load config. Err: %s", err)
 	}
 
 	AdjustGoMaxProcs()
 	log.Printf("Bot '%s' started.\n", bot.config.Name)
-	log.Printf("Fiat display currency: %s.", bot.config.FiatDisplayCurrency)
-	log.Printf("Bot dry run mode: %v\n", common.IsEnabled(bot.dryRun))
+	log.Printf("Bot dry run mode: %v.\n", common.IsEnabled(bot.dryRun))
 
-	if bot.config.SMS.Enabled {
-		bot.smsglobal = smsglobal.New(bot.config.SMS.Username, bot.config.SMS.Password,
-			bot.config.Name, bot.config.SMS.Contacts)
-		log.Printf(
-			"SMS support enabled. Number of SMS contacts %d.\n",
-			bot.smsglobal.GetEnabledContacts(),
-		)
-	} else {
-		log.Println("SMS support disabled.")
-	}
+	log.Printf("Available Exchanges: %d. Enabled Exchanges: %d.\n",
+		len(bot.config.Exchanges),
+		bot.config.CountEnabledExchanges())
 
-	log.Printf(
-		"Available Exchanges: %d. Enabled Exchanges: %d.\n",
-		len(bot.config.Exchanges), bot.config.CountEnabledExchanges(),
-	)
+	common.HTTPClient = common.NewHTTPClientWithTimeout(bot.config.GlobalHTTPTimeout)
+	log.Printf("Global HTTP request timeout: %v.\n", common.HTTPClient.Timeout)
 
 	SetupExchanges()
 	if len(bot.exchanges) == 0 {
 		log.Fatalf("No exchanges were able to be loaded. Exiting")
 	}
-	// TODO: Fix hack, allow 5 seconds to update exchange settings
-	time.Sleep(time.Second * 5)
 
-	if bot.config.CurrencyExchangeProvider == "yahoo" {
-		currency.SetProvider(true)
-	} else {
-		currency.SetProvider(false)
-	}
-	log.Printf("Currency exchange provider: %s.", bot.config.CurrencyExchangeProvider)
+	log.Println("Starting communication mediums..")
+	bot.comms = communications.NewComm(bot.config.GetCommunicationsConfig())
+	bot.comms.GetEnabledCommunicationMediums()
 
-	bot.config.RetrieveConfigCurrencyPairs(true)
-	err = currency.SeedCurrencyData(common.JoinStrings(currency.BaseCurrencies, ","))
+	log.Printf("Fiat display currency: %s.", bot.config.Currency.FiatDisplayCurrency)
+	currency.BaseCurrency = bot.config.Currency.FiatDisplayCurrency
+	currency.FXProviders = forexprovider.StartFXService(bot.config.GetCurrencyConfig().ForexProviders)
+	log.Printf("Primary forex conversion provider: %s.\n", bot.config.GetPrimaryForexProvider())
+	err = bot.config.RetrieveConfigCurrencyPairs(true)
 	if err != nil {
-		currency.SwapProvider()
-		log.Printf("'%s' currency exchange provider failed, swapping to %s and testing..",
-			bot.config.CurrencyExchangeProvider, currency.GetProvider())
-		err = currency.SeedCurrencyData(common.JoinStrings(currency.BaseCurrencies, ","))
-		if err != nil {
-			log.Fatalf("Fatal error retrieving config currencies. Error: %s", err)
-		}
+		log.Fatalf("Failed to retrieve config currency pairs. Error: %s", err)
 	}
 	log.Println("Successfully retrieved config currencies.")
+	log.Println("Fetching currency data from forex provider..")
+	err = currency.SeedCurrencyData(common.JoinStrings(currency.FiatCurrencies, ","))
+	if err != nil {
+		log.Fatalf("Unable to fetch forex data. Error: %s", err)
+	}
 
 	bot.portfolio = &portfolio.Portfolio
 	bot.portfolio.SeedPortfolio(bot.config.Portfolio)
 	SeedExchangeAccountInfo(GetAllEnabledExchangeAccountInfo().Data)
-	go portfolio.StartPortfolioWatcher()
 
-	log.Println("Starting websocket handler")
-	go WebsocketHandler()
+	go portfolio.StartPortfolioWatcher()
 	go TickerUpdaterRoutine()
 	go OrderbookUpdaterRoutine()
 
@@ -135,8 +126,18 @@ func main() {
 			"HTTP Webserver support enabled. Listen URL: http://%s:%d/\n",
 			common.ExtractHost(listenAddr), common.ExtractPort(listenAddr),
 		)
+
 		router := NewRouter(bot.exchanges)
-		log.Fatal(http.ListenAndServe(listenAddr, router))
+		go func() {
+			err = http.ListenAndServe(listenAddr, router)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}()
+
+		log.Println("HTTP Webserver started successfully.")
+		log.Println("Starting websocket handler.")
+		StartWebsocketHandler()
 	} else {
 		log.Println("HTTP RESTful Webserver support disabled.")
 	}
@@ -174,15 +175,18 @@ func HandleInterrupt() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		sig := <-c
-		log.Printf("Captured %v.", sig)
-		Shutdown()
+		log.Printf("Captured %v, shutdown requested.", sig)
+		bot.shutdown <- true
 	}()
 }
 
 // Shutdown correctly shuts down bot saving configuration files
 func Shutdown() {
 	log.Println("Bot shutting down..")
-	bot.config.Portfolio = portfolio.Portfolio
+
+	if len(portfolio.Portfolio.Addresses) != 0 {
+		bot.config.Portfolio = portfolio.Portfolio
+	}
 
 	if !bot.dryRun {
 		err := bot.config.SaveConfig(bot.configFile)
@@ -195,53 +199,5 @@ func Shutdown() {
 	}
 
 	log.Println("Exiting.")
-	os.Exit(1)
-}
-
-// SeedExchangeAccountInfo seeds account info
-func SeedExchangeAccountInfo(data []exchange.AccountInfo) {
-	if len(data) == 0 {
-		return
-	}
-
-	port := portfolio.GetPortfolio()
-
-	for i := 0; i < len(data); i++ {
-		exchangeName := data[i].ExchangeName
-		for j := 0; j < len(data[i].Currencies); j++ {
-			currencyName := data[i].Currencies[j].CurrencyName
-			onHold := data[i].Currencies[j].Hold
-			avail := data[i].Currencies[j].TotalValue
-			total := onHold + avail
-
-			if !port.ExchangeAddressExists(exchangeName, currencyName) {
-				if total <= 0 {
-					continue
-				}
-				log.Printf("Portfolio: Adding new exchange address: %s, %s, %f, %s\n",
-					exchangeName, currencyName, total, portfolio.PortfolioAddressExchange)
-				port.Addresses = append(
-					port.Addresses,
-					portfolio.Address{Address: exchangeName, CoinType: currencyName,
-						Balance: total, Description: portfolio.PortfolioAddressExchange},
-				)
-			} else {
-				if total <= 0 {
-					log.Printf("Portfolio: Removing %s %s entry.\n", exchangeName,
-						currencyName)
-					port.RemoveExchangeAddress(exchangeName, currencyName)
-				} else {
-					balance, ok := port.GetAddressBalance(exchangeName, currencyName, portfolio.PortfolioAddressExchange)
-					if !ok {
-						continue
-					}
-					if balance != total {
-						log.Printf("Portfolio: Updating %s %s entry with balance %f.\n",
-							exchangeName, currencyName, total)
-						port.UpdateExchangeAddressBalance(exchangeName, currencyName, total)
-					}
-				}
-			}
-		}
-	}
+	os.Exit(0)
 }

@@ -18,11 +18,13 @@ You can track ideas, planned features and what's in progresss on this Trello boa
 
 Join our slack to discuss all things related to GoCryptoTrader! [GoCryptoTrader Slack](https://gocryptotrader.herokuapp.com/)
 
-## Alphapoint Exchange 
+## Alphapoint Exchange
 
-### Current Features
++ Please visit [Alphapoint](https://www.alphapoint.com/) for more info.
 
-+ Initial generation
+### How to enable
+
++ Not currently configurable
 
 ### Please click GoDocs chevron above to view current GoDoc information for this package
 
@@ -39,7 +41,7 @@ When submitting a PR, please abide by our coding guidelines:
 
 ## Donations
 
-<img src="https://github.com/thrasher-/gocryptotrader/blob/master/web/src/assets/early-dumb-donate.png?raw=true" hspace="70">
+<img src="https://github.com/thrasher-/gocryptotrader/blob/master/web/src/assets/donate.png?raw=true" hspace="70">
 
 If this framework helped you in any way, or you would like to support the developers working on it, please donate Bitcoin to:
 

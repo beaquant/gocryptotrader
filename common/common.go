@@ -3,6 +3,7 @@ package common
 import (
 	"crypto/hmac"
 	"crypto/md5"
+	"crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
@@ -29,16 +30,54 @@ import (
 	"time"
 )
 
+// Vars for common.go operations
+var (
+	HTTPClient *http.Client
+)
+
 // Const declarations for common.go operations
 const (
 	HashSHA1 = iota
 	HashSHA256
 	HashSHA512
 	HashSHA512_384
+	HashMD5
 	SatoshisPerBTC = 100000000
 	SatoshisPerLTC = 100000000
 	WeiPerEther    = 1000000000000000000
 )
+
+func initialiseHTTPClient() {
+	// If the HTTPClient isn't set, start a new client with a default timeout of 5 seconds
+	if HTTPClient == nil {
+		HTTPClient = NewHTTPClientWithTimeout(time.Duration(time.Second * 5))
+	}
+}
+
+// NewHTTPClientWithTimeout initialises a new HTTP client with the specified
+// timeout duration
+func NewHTTPClientWithTimeout(t time.Duration) *http.Client {
+	h := &http.Client{Timeout: t}
+	return h
+}
+
+// GetRandomSalt returns a random salt
+func GetRandomSalt(input []byte, saltLen int) ([]byte, error) {
+	if saltLen <= 0 {
+		return nil, errors.New("salt length is too small")
+	}
+	salt := make([]byte, saltLen)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return nil, err
+	}
+
+	var result []byte
+	if input != nil {
+		result = input
+	}
+	result = append(result, salt...)
+	return result, nil
+}
 
 // GetMD5 returns a MD5 hash of a byte array
 func GetMD5(input []byte) []byte {
@@ -83,6 +122,10 @@ func GetHMAC(hashType int, input, key []byte) []byte {
 		{
 			hash = sha512.New384
 		}
+	case HashMD5:
+		{
+			hash = md5.New
+		}
 	}
 
 	hmac := hmac.New(hash, []byte(key))
@@ -90,9 +133,22 @@ func GetHMAC(hashType int, input, key []byte) []byte {
 	return hmac.Sum(nil)
 }
 
+// Sha1ToHex takes a string, sha1 hashes it and return a hex string of the
+// result
+func Sha1ToHex(data string) string {
+	h := sha1.New()
+	h.Write([]byte(data))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
 // HexEncodeToString takes in a hexadecimal byte array and returns a string
 func HexEncodeToString(input []byte) string {
 	return hex.EncodeToString(input)
+}
+
+// ByteArrayToString returns a string
+func ByteArrayToString(input []byte) string {
+	return fmt.Sprintf("%x", input)
 }
 
 // Base64Decode takes in a Base64 string and returns a byte array and an error
@@ -149,6 +205,17 @@ func StringDataContains(haystack []string, needle string) bool {
 func StringDataCompare(haystack []string, needle string) bool {
 	for x := range haystack {
 		if haystack[x] == needle {
+			return true
+		}
+	}
+	return false
+}
+
+// StringDataCompareUpper data checks the substring array with an input and returns
+// a bool irrespective of lower or upper case strings
+func StringDataCompareUpper(haystack []string, needle string) bool {
+	for x := range haystack {
+		if StringToUpper(haystack[x]) == StringToUpper(needle) {
 			return true
 		}
 	}
@@ -288,6 +355,8 @@ func SendHTTPRequest(method, path string, headers map[string]string, body io.Rea
 		return "", errors.New("invalid HTTP method specified")
 	}
 
+	initialiseHTTPClient()
+
 	req, err := http.NewRequest(method, path, body)
 
 	if err != nil {
@@ -298,8 +367,7 @@ func SendHTTPRequest(method, path string, headers map[string]string, body io.Rea
 		req.Header.Add(k, v)
 	}
 
-	httpClient := &http.Client{}
-	resp, err := httpClient.Do(req)
+	resp, err := HTTPClient.Do(req)
 
 	if err != nil {
 		return "", err
@@ -323,7 +391,9 @@ func SendHTTPGetRequest(url string, jsonDecode, isVerbose bool, result interface
 		log.Println("Raw URL: ", url)
 	}
 
-	res, err := http.Get(url)
+	initialiseHTTPClient()
+
+	res, err := HTTPClient.Get(url)
 	if err != nil {
 		return err
 	}
@@ -346,7 +416,6 @@ func SendHTTPGetRequest(url string, jsonDecode, isVerbose bool, result interface
 	if jsonDecode {
 		err := JSONDecode(contents, result)
 		if err != nil {
-			log.Println(string(contents[:]))
 			return err
 		}
 	}
@@ -486,4 +555,62 @@ func GetOSPathSlash() string {
 		return "\\"
 	}
 	return "/"
+}
+
+// UnixMillis converts a UnixNano timestamp to milliseconds
+func UnixMillis(t time.Time) int64 {
+	return t.UnixNano() / int64(time.Millisecond)
+}
+
+// RecvWindow converts a supplied time.Duration to milliseconds
+func RecvWindow(d time.Duration) int64 {
+	return int64(d) / int64(time.Millisecond)
+}
+
+// FloatFromString format
+func FloatFromString(raw interface{}) (float64, error) {
+	str, ok := raw.(string)
+	if !ok {
+		return 0, fmt.Errorf("unable to parse, value not string: %T", raw)
+	}
+	flt, err := strconv.ParseFloat(str, 64)
+	if err != nil {
+		return 0, fmt.Errorf("unable to parse, value not string: %T", raw)
+	}
+	return flt, nil
+}
+
+// IntFromString format
+func IntFromString(raw interface{}) (int, error) {
+	str, ok := raw.(string)
+	if !ok {
+		return 0, fmt.Errorf("unable to parse, value not string: %T", raw)
+	}
+	n, err := strconv.Atoi(str)
+	if err != nil {
+		return 0, fmt.Errorf("unable to parse as int: %T", raw)
+	}
+	return n, nil
+}
+
+// Int64FromString format
+func Int64FromString(raw interface{}) (int64, error) {
+	str, ok := raw.(string)
+	if !ok {
+		return 0, fmt.Errorf("unable to parse, value not string: %T", raw)
+	}
+	n, err := strconv.ParseInt(str, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("unable to parse as int: %T", raw)
+	}
+	return n, nil
+}
+
+// TimeFromUnixTimestampFloat format
+func TimeFromUnixTimestampFloat(raw interface{}) (time.Time, error) {
+	ts, ok := raw.(float64)
+	if !ok {
+		return time.Time{}, fmt.Errorf("unable to parse, value not int64: %T", raw)
+	}
+	return time.Unix(0, int64(ts)*int64(time.Millisecond)), nil
 }

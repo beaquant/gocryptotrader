@@ -3,6 +3,7 @@ package portfolio
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestGetEthereumBalance(t *testing.T) {
@@ -19,7 +20,7 @@ func TestGetEthereumBalance(t *testing.T) {
 	}
 
 	response, err = GetEthereumBalance(nonsenseAddress)
-	if response.Error.Message != "" {
+	if response.Error.Message != "" || err == nil {
 		t.Errorf("Test Failed - Portfolio GetEthereumBalance() Error: %s",
 			response.Error.Message)
 	}
@@ -201,6 +202,8 @@ func TestUpdatePortfolio(t *testing.T) {
 	if value {
 		t.Error("Test Failed - portfolio_test.go - UpdatePortfolio error")
 	}
+
+	time.Sleep(time.Second * 5)
 	value = portfolio.UpdatePortfolio(
 		[]string{"0xb794f5ea0ba39494ce839613fffba74279579268",
 			"0xe853c56864a2ebe4576a807d26fdc4a0ada51919"}, "ETH",

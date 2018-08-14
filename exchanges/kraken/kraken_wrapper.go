@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/url"
 	"strconv"
+	"sync"
 
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/currency/pair"
@@ -15,8 +16,12 @@ import (
 )
 
 // Start starts the Kraken go routine
-func (k *Kraken) Start() {
-	go k.Run()
+func (k *Kraken) Start(wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		k.Run()
+		wg.Done()
+	}()
 }
 
 // Run implements the Kraken wrapper
@@ -53,12 +58,12 @@ func (k *Kraken) Run() {
 			enabledPairs := []string{"XBT-USD"}
 			log.Println("WARNING: Available pairs for Kraken reset due to config upgrade, please enable the ones you would like again")
 
-			err = k.UpdateEnabledCurrencies(enabledPairs, true)
+			err = k.UpdateCurrencies(enabledPairs, true, true)
 			if err != nil {
 				log.Printf("%s Failed to get config.\n", k.GetName())
 			}
 		}
-		err = k.UpdateAvailableCurrencies(exchangeProducts, forceUpgrade)
+		err = k.UpdateCurrencies(exchangeProducts, false, forceUpgrade)
 		if err != nil {
 			log.Printf("%s Failed to get config.\n", k.GetName())
 		}
@@ -109,7 +114,7 @@ func (k *Kraken) SetTicker(symbol string) error {
 	resp := Response{}
 	path := fmt.Sprintf("%s/%s/public/%s?%s", krakenAPIURL, krakenAPIVersion, krakenTicker, values.Encode())
 
-	err := common.SendHTTPGetRequest(path, true, k.Verbose, &resp)
+	err := k.SendHTTPRequest(path, &resp)
 	if err != nil {
 		return err
 	}
@@ -180,9 +185,66 @@ func (k *Kraken) GetExchangeAccountInfo() (exchange.AccountInfo, error) {
 	return response, nil
 }
 
+// GetExchangeFundTransferHistory returns funding history, deposits and
+// withdrawals
+func (k *Kraken) GetExchangeFundTransferHistory() ([]exchange.FundHistory, error) {
+	var fundHistory []exchange.FundHistory
+	return fundHistory, errors.New("not supported on exchange")
+}
+
 // GetExchangeHistory returns historic trade data since exchange opening.
 func (k *Kraken) GetExchangeHistory(p pair.CurrencyPair, assetType string) ([]exchange.TradeHistory, error) {
 	var resp []exchange.TradeHistory
 
 	return resp, errors.New("trade history not yet implemented")
+}
+
+// SubmitExchangeOrder submits a new order
+func (k *Kraken) SubmitExchangeOrder(p pair.CurrencyPair, side exchange.OrderSide, orderType exchange.OrderType, amount, price float64, clientID string) (int64, error) {
+	return 0, errors.New("not yet implemented")
+}
+
+// ModifyExchangeOrder will allow of changing orderbook placement and limit to
+// market conversion
+func (k *Kraken) ModifyExchangeOrder(orderID int64, action exchange.ModifyOrder) (int64, error) {
+	return 0, errors.New("not yet implemented")
+}
+
+// CancelExchangeOrder cancels an order by its corresponding ID number
+func (k *Kraken) CancelExchangeOrder(orderID int64) error {
+	return errors.New("not yet implemented")
+}
+
+// CancelAllExchangeOrders cancels all orders associated with a currency pair
+func (k *Kraken) CancelAllExchangeOrders() error {
+	return errors.New("not yet implemented")
+}
+
+// GetExchangeOrderInfo returns information on a current open order
+func (k *Kraken) GetExchangeOrderInfo(orderID int64) (exchange.OrderDetail, error) {
+	var orderDetail exchange.OrderDetail
+	return orderDetail, errors.New("not yet implemented")
+}
+
+// GetExchangeDepositAddress returns a deposit address for a specified currency
+func (k *Kraken) GetExchangeDepositAddress(cryptocurrency pair.CurrencyItem) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawCryptoExchangeFunds returns a withdrawal ID when a withdrawal is
+// submitted
+func (k *Kraken) WithdrawCryptoExchangeFunds(address string, cryptocurrency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawFiatExchangeFunds returns a withdrawal ID when a
+// withdrawal is submitted
+func (k *Kraken) WithdrawFiatExchangeFunds(currency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
+}
+
+// WithdrawFiatExchangeFundsToInternationalBank returns a withdrawal ID when a
+// withdrawal is submitted
+func (k *Kraken) WithdrawFiatExchangeFundsToInternationalBank(currency pair.CurrencyItem, amount float64) (string, error) {
+	return "", errors.New("not yet implemented")
 }

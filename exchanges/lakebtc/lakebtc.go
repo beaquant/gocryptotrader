@@ -11,6 +11,7 @@ import (
 	"github.com/thrasher-/gocryptotrader/common"
 	"github.com/thrasher-/gocryptotrader/config"
 	"github.com/thrasher-/gocryptotrader/exchanges"
+	"github.com/thrasher-/gocryptotrader/exchanges/request"
 	"github.com/thrasher-/gocryptotrader/exchanges/ticker"
 )
 
@@ -29,6 +30,9 @@ const (
 	lakeBTCGetTrades           = "getTrades"
 	lakeBTCGetExternalAccounts = "getExternalAccounts"
 	lakeBTCCreateWithdraw      = "createWithdraw"
+
+	lakeBTCAuthRate = 0
+	lakeBTCUnauth   = 0
 )
 
 // LakeBTC is the overarching type across the LakeBTC package
@@ -50,6 +54,9 @@ func (l *LakeBTC) SetDefaults() {
 	l.ConfigCurrencyPairFormat.Delimiter = ""
 	l.ConfigCurrencyPairFormat.Uppercase = true
 	l.AssetTypes = []string{ticker.Spot}
+	l.SupportsAutoPairUpdating = true
+	l.SupportsRESTTickerBatching = true
+	l.Requester = request.New(l.Name, request.NewRateLimit(time.Second, lakeBTCAuthRate), request.NewRateLimit(time.Second, lakeBTCUnauth), common.NewHTTPClientWithTimeout(exchange.DefaultHTTPTimeout))
 }
 
 // Setup sets exchange configuration profile
@@ -60,6 +67,8 @@ func (l *LakeBTC) Setup(exch config.ExchangeConfig) {
 		l.Enabled = true
 		l.AuthenticatedAPISupport = exch.AuthenticatedAPISupport
 		l.SetAPIKeys(exch.APIKey, exch.APISecret, "", false)
+		l.SetHTTPClientTimeout(exch.HTTPTimeout)
+		l.SetHTTPClientUserAgent(exch.HTTPUserAgent)
 		l.RESTPollingDelay = exch.RESTPollingDelay
 		l.Verbose = exch.Verbose
 		l.Websocket = exch.Websocket
@@ -74,7 +83,26 @@ func (l *LakeBTC) Setup(exch config.ExchangeConfig) {
 		if err != nil {
 			log.Fatal(err)
 		}
+		err = l.SetAutoPairDefaults()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
+}
+
+// GetTradablePairs returns a list of available pairs from the exchange
+func (l *LakeBTC) GetTradablePairs() ([]string, error) {
+	result, err := l.GetTicker()
+	if err != nil {
+		return nil, err
+	}
+
+	var currencies []string
+	for x := range result {
+		currencies = append(currencies, common.StringToUpper(x))
+	}
+
+	return currencies, nil
 }
 
 // GetFee returns maker or taker fee
@@ -90,7 +118,7 @@ func (l *LakeBTC) GetTicker() (map[string]Ticker, error) {
 	response := make(map[string]TickerResponse)
 	path := fmt.Sprintf("%s/%s", lakeBTCAPIURL, lakeBTCTicker)
 
-	if err := common.SendHTTPGetRequest(path, true, l.Verbose, &response); err != nil {
+	if err := l.SendHTTPRequest(path, &response); err != nil {
 		return nil, err
 	}
 
@@ -132,7 +160,7 @@ func (l *LakeBTC) GetOrderBook(currency string) (Orderbook, error) {
 	}
 	path := fmt.Sprintf("%s/%s?symbol=%s", lakeBTCAPIURL, lakeBTCOrderbook, common.StringToLower(currency))
 	resp := Response{}
-	err := common.SendHTTPGetRequest(path, true, l.Verbose, &resp)
+	err := l.SendHTTPRequest(path, &resp)
 	if err != nil {
 		return Orderbook{}, err
 	}
@@ -173,7 +201,7 @@ func (l *LakeBTC) GetTradeHistory(currency string) ([]TradeHistory, error) {
 	path := fmt.Sprintf("%s/%s?symbol=%s", lakeBTCAPIURL, lakeBTCTrades, common.StringToLower(currency))
 	resp := []TradeHistory{}
 
-	return resp, common.SendHTTPGetRequest(path, true, l.Verbose, &resp)
+	return resp, l.SendHTTPRequest(path, &resp)
 }
 
 // GetAccountInfo returns your current account information
@@ -271,6 +299,11 @@ func (l *LakeBTC) CreateWithdraw(amount float64, accountID int64) (Withdraw, err
 	return resp, l.SendAuthenticatedHTTPRequest(lakeBTCCreateWithdraw, params, &resp)
 }
 
+// SendHTTPRequest sends an unauthenticated http request
+func (l *LakeBTC) SendHTTPRequest(path string, result interface{}) error {
+	return l.SendPayload("GET", path, nil, nil, result, false, l.Verbose)
+}
+
 // SendAuthenticatedHTTPRequest sends an autheticated HTTP request to a LakeBTC
 func (l *LakeBTC) SendAuthenticatedHTTPRequest(method, params string, result interface{}) (err error) {
 	if !l.AuthenticatedAPISupport {
@@ -305,32 +338,5 @@ func (l *LakeBTC) SendAuthenticatedHTTPRequest(method, params string, result int
 	headers["Authorization"] = "Basic " + common.Base64Encode([]byte(l.APIKey+":"+common.HexEncodeToString(hmac)))
 	headers["Content-Type"] = "application/json-rpc"
 
-	resp, err := common.SendHTTPRequest("POST", lakeBTCAPIURL, headers, strings.NewReader(string(data)))
-	if err != nil {
-		return err
-	}
-
-	if l.Verbose {
-		log.Printf("Received raw: %s\n", resp)
-	}
-
-	type ErrorResponse struct {
-		Error string `json:"error"`
-	}
-
-	errResponse := ErrorResponse{}
-	err = common.JSONDecode([]byte(resp), &errResponse)
-	if err != nil {
-		return errors.New("unable to check response for error")
-	}
-
-	if errResponse.Error != "" {
-		return errors.New(errResponse.Error)
-	}
-
-	err = common.JSONDecode([]byte(resp), &result)
-	if err != nil {
-		return errors.New("unable to JSON Unmarshal response")
-	}
-	return nil
+	return l.SendPayload("POST", lakeBTCAPIURL, headers, strings.NewReader(string(data)), result, true, l.Verbose)
 }
